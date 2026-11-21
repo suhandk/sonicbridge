@@ -18,6 +18,10 @@ test('local runtime, Unicode simulation, WAV export/import, and permission denia
   const message = 'नमस्ते 🌉 café 日本語';
   await page.getByLabel('What would you like to send?').fill(message);
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  const simulationPopup = page.getByRole('dialog', { name: 'Message received' });
+  await expect(simulationPopup).toContainText('Simulation · local PCM');
+  await expect(simulationPopup).toContainText(message);
+  await simulationPopup.getByRole('button', { name: 'Dismiss' }).click();
   await expect(page.locator('.inbox article')).toContainText(message);
   await expect(page.locator('.inbox article')).toContainText('SIMULATION / PCM');
   await page.locator('summary').filter({ hasText: 'Technical details' }).click();
@@ -82,7 +86,16 @@ test(`real AudioWorklet and worker decode WAV-fed microphone at ${graphRate} Hz`
   await page.getByRole('button', { name: 'Listen with microphone' }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Stop listening' })).toBeEnabled();
-  await expect(page.locator('.inbox article').first()).toContainText(message, { timeout: 45000 });
+  const popup = page.getByRole('dialog', { name: 'Message received' });
+  await expect(popup).toContainText(message, { timeout: 45000 });
+  await expect(popup.getByRole('button', { name: 'Dismiss' })).toBeFocused();
+  if (graphRate === 44100) await page.keyboard.press('Escape');
+  else {
+    await popup.getByRole('button', { name: 'View in Received' }).click();
+    await expect(page.getByRole('region', { name: 'Received' })).toBeFocused();
+  }
+  await expect(popup).toBeHidden();
+  await expect(page.locator('.inbox article').first()).toContainText(message);
   await expect(page.locator('.inbox article').first()).toContainText('MICROPHONE / VERIFIED');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Verified at receiver');
   await expect(page.locator('.scope canvas')).toBeVisible();

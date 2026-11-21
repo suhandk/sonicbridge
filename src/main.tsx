@@ -2,6 +2,7 @@ import type { OperatingMode, ControllerSnapshot } from './controller';
 import { estimateTransfer, manifestSize, packContent, safeName, type ContentKind, type Measurement, type VerifiedContent } from './content';
 import { readImage, thumbnail, type ImageDraft } from './images';
 import { RasterPreview, ReceivedFile } from './file-preview';
+import { ReceivedDialog } from './received-dialog';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AudioLink, DEFAULT_PLAYBACK_GAIN, describeError } from './audio';
@@ -13,6 +14,7 @@ import { decodePacket, Kind, MAX_TRANSFER_BYTES, MAX_PAYLOAD } from './protocol'
 import { DEFAULT_DATA_ATTEMPTS, StopAndWait, type Events, type PacketEvent } from './transport';
 import { SignalView, type SignalFrame } from './signal-view';
 import { active, duration, SessionMonitor, type Session, type Progress } from './session-monitor';
+import { AcousticRanging, type RangeResult } from './ranging';
 import { simulateTransfer } from './simulation';
 import { readWav, writeWav } from './wav';
 
@@ -40,6 +42,8 @@ type Receipt = { file?: VerifiedContent; text: string; source: string; time: str
 function App() {
   const [audioLink] = useState(() => new AudioLink());
   const link = useRef(audioLink);
+  const [distance, setDistance] = useState<RangeResult>();
+  const [ranging] = useState(() => new AcousticRanging(audioLink, setDistance));
   const transport = useRef<StopAndWait | undefined>(undefined);
   const sendAbort = useRef<AbortController | undefined>(undefined);
   const calibration = useRef<Calibration | undefined>(undefined);
@@ -70,6 +74,7 @@ function App() {
   const [text, setText] = useState('');
   const [notice, setNotice] = useState('Start audio to prepare the local modem.');
   const [, setLevel] = useState(0), [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [incomingReceipt, setIncomingReceipt] = useState<Receipt>();
   const [fixture, setFixture] = useState<{ pcm: Float32Array; sampleRate: number }>();
   const [kind, setKind] = useState<ContentKind>('text');
   const [original, setOriginal] = useState<ImageDraft>();
@@ -111,9 +116,11 @@ function App() {
     state(phase, detail, at) {
       setNotice(detail);
       if (phase === 'negotiating' || phase === 'receiving') {
+        ranging.cancel(); setDistance(undefined);
         setSession(old => phase === 'receiving' && old?.phase === 'receiving' ? old : { start: at, last: at, phase, receive: phase === 'receiving', virtual: mode === 'simulation', policy: 'Balanced', retries: 0 });
       } else setSession(old => old && ({ ...old, phase, last: at }));
       if (phase === 'receiving') setInitialEta(undefined);
+      if (phase === 'failed' || phase === 'cancelled') ranging.cancel();
       if (phase === 'failed') setError(detail);
     },
     packet(event) {
@@ -167,6 +174,7 @@ function App() {
     };
     audio.onDiagnostics = setDiagnostics; audio.onDevices = setDevices;
     audio.onInterrupted = reason => {
+      ranging.cancel();
       discardCapture(); setReplying(false); frame.current = undefined; endMonitor();
       operationGeneration.current++; setBusy(''); setStats(undefined); setMeasurement(undefined);
       calibration.current?.dispose(); calibration.current = undefined; setArmed(false);
@@ -174,12 +182,14 @@ function App() {
       sendAbort.current?.abort(new Error(reason)); setReady(false); setListening(false); setLevel(0); setError(reason);
       setCalibrationStatus('Audio interrupted. Start Audio, listen, and recalibrate after selecting your route.');
     };
-    const unregister = registerOffline(setOffline, () => { calibration.current?.dispose(); transport.current?.dispose(); sendAbort.current?.abort(); audio.stop(); });
-    return () => { unregister(); audio.onCapture = undefined; recording.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
+    const unregister = registerOffline(setOffline, () => { ranging.cancel(); calibration.current?.dispose(); transport.current?.dispose(); sendAbort.current?.abort(); audio.stop(); });
+    return () => { ranging.cancel(); unregister(); audio.onCapture = undefined; recording.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
   }, []);
 
   function receive(message: string, source: string, file?: VerifiedContent) {
-    setReceipts(items => [{ text: message, source, file, time: new Date().toLocaleTimeString(), id: Date.now() + Math.random() }, ...items].slice(0, 20));
+    const receipt = { text: message, source, file, time: new Date().toLocaleTimeString(), id: Date.now() + Math.random() };
+    setReceipts(items => [receipt, ...items].slice(0, 20));
+    if (file || source.startsWith('MICROPHONE / VERIFIED')) setIncomingReceipt(receipt);
 
     // Pass through AcousticBridge for cryptographic verification, replay check, and scenario dispatch
     if (file) {
@@ -200,6 +210,7 @@ function App() {
   }
 
   async function run(label: string, action: () => Promise<void>) {
+    ranging.cancel();
     const generation = operationGeneration.current;
     setBusy(label); setError('');
     try { await action(); } catch (e) { if (generation === operationGeneration.current) setError(describeError(e)); } finally { if (generation === operationGeneration.current) setBusy(''); }
@@ -211,6 +222,10 @@ function App() {
       ...monitorEvents, replying: setReplying,
       diagnostic: detail => setNotice(detail),
       content: item => receive(item.text ?? item.name, 'MICROPHONE / VERIFIED · SHA-256', item),
+      rangeReady: (role, identity) => {
+        const current = transport.current;
+        if (current) void ranging.start(role, identity, signal => current.whenIdle(signal));
+      },
       deliver: bytes => {
         try { if (calibration.current?.handle(bytes)) return; receive(new TextDecoder('utf-8', { fatal: true }).decode(bytes), 'MICROPHONE / VERIFIED'); }
         catch (error) { setError(`Verified binary transfer is not valid UTF-8 text: ${describeError(error)}`); }
@@ -239,6 +254,7 @@ function App() {
   }
 
   function stopListening() {
+    ranging.cancel();
     discardCapture(); setReplying(false); endMonitor(); frame.current = undefined;
     calibration.current?.dispose(); calibration.current = undefined; setArmed(false);
     transport.current?.dispose(); transport.current = undefined;
@@ -292,6 +308,7 @@ function App() {
 
   // Unified Scenario Acoustic Transmission Function
   async function sendScenarioPayload(body: Uint8Array, description: string) {
+    ranging.cancel();
     if (sendAbort.current) return;
     const abort = sendAbort.current = new AbortController();
     setEngagement(value => value + 1);
@@ -375,6 +392,17 @@ function App() {
       {/* Accessibility skip link */}
       <a className="skip" href="#workspace">Skip to transfer controls</a>
 
+      {incomingReceipt && <ReceivedDialog
+        key={incomingReceipt.id}
+        text={incomingReceipt.text}
+        file={incomingReceipt.file}
+        simulated={incomingReceipt.source.startsWith('SIMULATION /')}
+        onDismiss={() => setIncomingReceipt(current => current?.id === incomingReceipt.id ? undefined : current)}
+        onViewReceived={() => {
+          setActiveTab('transceiver');
+          requestAnimationFrame(() => document.getElementById('received')?.focus());
+        }}
+      />}
       <MoonRelay preview={relayPreview} listening={listening} transferring={running || playing || replying} failed={!!error} packets={packets}/>
       <Navbar open={openConsole}/>
       <Hero open={openConsole} ready={ready} listening={listening} physical={physical}/>
@@ -618,9 +646,9 @@ function App() {
             </div>
 
             <div className="workspace">
-              <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
-              <section className="card results">
-                <div className="card-heading"><h2>Results</h2><span className="mono">{receipts.length} entries</span></div>
+              <SessionMonitor distance={physical ? distance : undefined} previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
+              <section id="received" className="card results" tabIndex={-1} aria-labelledby="received-title">
+                <div className="card-heading"><h2 id="received-title">Received</h2><span className="mono">{receipts.length} entries</span></div>
                 <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">
                   {receipts.length ? receipts.map(item => (
                     <article key={item.id} data-origin={item.source.startsWith('MICROPHONE / VERIFIED') ? 'verified' : item.source.includes('SIMULATION') ? 'sim' : 'fixture'}>
