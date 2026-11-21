@@ -20,20 +20,10 @@ import { readWav, writeWav } from './wav';
 import { defaultAcousticBridge } from './bridge/acoustic-bridge';
 import { getOrCreateDeviceIdentity } from './security/identity';
 import type { DeviceIdentity } from './types/identity';
-import { AudioVisualizerView } from './components/AudioVisualizerView';
 import { RescueView } from './components/RescueView';
-import { AirGapView } from './components/AirGapView';
-import { TraceView } from './components/TraceView';
-import { TrustView } from './components/TrustView';
-import { AuditView } from './components/AuditView';
-import { RelayQueueView } from './components/RelayQueueView';
 import { AcousticTicker } from './components/AcousticTicker';
 import { defaultRescueState } from './scenarios/rescue/state';
-import { defaultAirGapState } from './scenarios/airgap/state';
-import { defaultTraceState } from './scenarios/trace/state';
 import type { IncidentReport } from './types/rescue';
-import type { ConfigPackage } from './types/airgap';
-import type { ShipmentRecord, HandoverEvent } from './types/trace';
 import { HumanReadableReceipt } from './components/HumanReadableReceipt';
 
 
@@ -57,7 +47,7 @@ function App() {
   // Identity & Multi-Scenario Navigation State
   const [localIdentity, setLocalIdentity] = useState<DeviceIdentity | null>(null);
   const [relayPreview, setRelayPreview] = useState<HTMLDivElement | null>(null);
-  const [activeTab, setActiveTab] = useState<'transceiver' | 'rescue' | 'airgap' | 'trace' | 'visualizer' | 'trust' | 'relay' | 'audit'>('transceiver');
+  const [activeTab, setActiveTab] = useState<'transceiver' | 'rescue'>('transceiver');
   const [speedMode, setSpeedMode] = useState<'fastest' | 'fast'>('fastest');
 
   const [role, setRole] = useState<'send' | 'receive'>('send');
@@ -199,19 +189,6 @@ function App() {
           if (type === 'rescue_incident') {
             defaultRescueState.addReport(evt.envelope.payload as IncidentReport);
             setNotice(`🚨 Received verified Rescue incident from ${evt.envelope.originDeviceId}`);
-          } else if (type === 'airgap_package') {
-            defaultAirGapState.addPackage(evt.envelope.payload as ConfigPackage);
-            setNotice(`🔒 Received verified Air-Gap package from ${evt.envelope.originDeviceId}`);
-          } else if (type === 'trace_handover') {
-            defaultTraceState.addShipment(evt.envelope.payload as ShipmentRecord);
-            setNotice(`📦 Received verified Trace shipment from ${evt.envelope.originDeviceId}`);
-          } else if (type === 'trace_acceptance') {
-            try {
-              defaultTraceState.addHandover(evt.envelope.payload as HandoverEvent);
-              setNotice(`📦 Received verified Custody Handover from ${evt.envelope.originDeviceId}`);
-            } catch (e) {
-              console.warn('Trace handover receive note:', e);
-            }
           }
         } else if (evt && !evt.verification.valid) {
           setError(`Security Alert: Received unverified or tampered envelope: ${evt.error || 'INVALID_SIGNATURE'}`);
@@ -404,45 +381,23 @@ function App() {
       <Guide/>
       <section className="console-shell"><div className="lunar-wrap"><h2 className="console-title">Console</h2>
       <header className="console-header">
-        {/* Selectable Operating Environments */}
-        <div className="mode-switcher-bar" role="tablist" aria-label="Mission Environment">
+        <nav className="mode-switcher-bar" aria-label="Console Navigation">
           <button
             className={`mode-tab-btn transceiver ${activeTab === 'transceiver' ? 'active' : ''}`}
+            aria-pressed={activeTab === 'transceiver'}
             onClick={() => setActiveTab('transceiver')}
           >
-            📡 TRANSCEIVER
+            Acoustic Transceiver
           </button>
           <button
             className={`mode-tab-btn rescue ${activeTab === 'rescue' ? 'active' : ''}`}
+            aria-pressed={activeTab === 'rescue'}
             onClick={() => setActiveTab('rescue')}
           >
-            🚨 RESCUE
+            Rescue Operations
           </button>
-          <button
-            className={`mode-tab-btn airgap ${activeTab === 'airgap' ? 'active' : ''}`}
-            onClick={() => setActiveTab('airgap')}
-          >
-            🔒 AIR-GAP
-          </button>
-          <button
-            className={`mode-tab-btn trace ${activeTab === 'trace' ? 'active' : ''}`}
-            onClick={() => setActiveTab('trace')}
-          >
-            📦 TRACE
-          </button>
-        </div>
-
-        {/* Device Identity Badge and Audio Status */}
+        </nav>
         <div className="header-controls">
-          {localIdentity && (
-            <button
-              className="device-badge-btn"
-              title="Click to view Identity & Trust"
-              onClick={() => setActiveTab('trust')}
-            >
-              ID: <strong>{localIdentity.name}</strong> ({localIdentity.fingerprint.slice(0, 6)})
-            </button>
-          )}
           <span className={`pill ${ready ? 'green' : ''}`}>
             {listening ? '● Mic Open' : ready ? '● Audio Ready' : '○ Audio Off'}
           </span>
@@ -458,58 +413,6 @@ function App() {
         speedMode={physical ? speedMode : "fast"}
       />
 
-      {/* Navigation Sub-Tabs */}
-      <nav className="console-nav-bar" aria-label="Console Navigation">
-        <button
-          className={`nav-tab-item ${activeTab === 'transceiver' ? 'active' : ''}`}
-          onClick={() => setActiveTab('transceiver')}
-        >
-          📡 Acoustic Transceiver
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'rescue' ? 'active' : ''}`}
-          onClick={() => setActiveTab('rescue')}
-        >
-          🚨 Rescue Operations
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'airgap' ? 'active' : ''}`}
-          onClick={() => setActiveTab('airgap')}
-        >
-          🔒 Air-Gap Security
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'trace' ? 'active' : ''}`}
-          onClick={() => setActiveTab('trace')}
-        >
-          📦 Supply Chain Trace
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'visualizer' ? 'active' : ''}`}
-          onClick={() => setActiveTab('visualizer')}
-        >
-          📊 Audio Spectrum & Readiness
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'trust' ? 'active' : ''}`}
-          onClick={() => setActiveTab('trust')}
-        >
-          🔑 Identity & Trust
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'relay' ? 'active' : ''}`}
-          onClick={() => setActiveTab('relay')}
-        >
-          🔄 Relay Mesh Queue
-        </button>
-        <button
-          className={`nav-tab-item ${activeTab === 'audit' ? 'active' : ''}`}
-          onClick={() => setActiveTab('audit')}
-        >
-          📜 Cryptographic Audit Ledger
-        </button>
-      </nav>
-
       {/* Main Workspace Body */}
       <main style={{ flex: 1, paddingBottom: '32px' }}>
         {/* Scenario Views */}
@@ -520,51 +423,6 @@ function App() {
             currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
           />
         )}
-        {activeTab === 'airgap' && (
-          <AirGapView
-            bridge={defaultAcousticBridge}
-            onSendPayload={sendScenarioPayload}
-            currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
-          />
-        )}
-        {activeTab === 'trace' && (
-          <TraceView
-            bridge={defaultAcousticBridge}
-            onSendPayload={sendScenarioPayload}
-            currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
-          />
-        )}
-
-        {/* Audio Visualizer Standalone View */}
-        {activeTab === 'visualizer' && (
-          <div className="scenario-view">
-            <AudioVisualizerView
-              audio={link.current}
-              diagnostics={diagnostics}
-              isSimulation={mode === 'simulation'}
-            />
-          </div>
-        )}
-
-        {/* Cryptographic Identity & Trust */}
-        {activeTab === 'trust' && localIdentity && (
-          <TrustView localIdentity={localIdentity} />
-        )}
-
-        {/* Multi-Hop Relay Mesh */}
-        {activeTab === 'relay' && (
-          <RelayQueueView
-            bridge={defaultAcousticBridge}
-            onSendPayload={sendScenarioPayload}
-            currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
-          />
-        )}
-
-        {/* Cryptographic Audit Ledger */}
-        {activeTab === 'audit' && (
-          <AuditView />
-        )}
-
         {/* Classic Modem Link & 3D Instrument View */}
         {activeTab === 'transceiver' && (
           <div style={{ marginTop: '24px' }}>
@@ -772,7 +630,7 @@ function App() {
                       ) : (
                         <HumanReadableReceipt
                           text={item.text}
-                          onNavigateTab={tab => setActiveTab(tab)}
+                          onOpenRescue={() => setActiveTab('rescue')}
                         />
                       )}
                     </article>

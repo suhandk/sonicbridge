@@ -1,13 +1,9 @@
 import type { IncidentReport, IncidentCategory, IncidentPriority } from '../types/rescue';
-import type { ConfigPackage } from '../types/airgap';
-import type { ShipmentRecord, HandoverEvent } from '../types/trace';
 import type { SonicEnvelope } from '../types/envelope';
-
-export type TabType = 'rescue' | 'airgap' | 'trace' | 'transceiver' | 'trust' | 'relay' | 'audit' | 'visualizer';
 
 interface HumanReadableReceiptProps {
   text: string;
-  onNavigateTab?: (tab: TabType) => void;
+  onOpenRescue?: () => void;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -31,20 +27,12 @@ function hasRenderablePayload(envelope: Record<string, unknown>) {
         (resources === undefined || (Array.isArray(resources) && resources.every(item => record(item) &&
           fields(item, 'string', ['urgency', 'type', 'unit']) && fields(item, 'number', ['quantity']))));
     }
-    case 'airgap_package':
-      return fields(payload, 'string', ['version', 'packageId', 'packageName', 'targetAssetId', 'authorOperator',
-        'authorDeviceId', 'description', 'contentDigestSha256']);
-    case 'trace_handover':
-    case 'trace_acceptance':
-      return fields(payload, 'number', ['quantity']) && fields(payload, 'string', ['shipmentId', 'handoverId',
-        'itemDescription', 'unit', 'senderOrganization', 'originLocation', 'intendedReceiver', 'destinationLocation',
-        'notes', 'currentHolderDeviceId', 'toDeviceId']);
     default:
       return false;
   }
 }
 
-export function HumanReadableReceipt({ text, onNavigateTab }: HumanReadableReceiptProps) {
+export function HumanReadableReceipt({ text, onOpenRescue }: HumanReadableReceiptProps) {
 
   // Try parsing the text as a SonicEnvelope or structured JSON
   let parsedEnvelope: SonicEnvelope | null = null;
@@ -165,12 +153,12 @@ export function HumanReadableReceipt({ text, onNavigateTab }: HumanReadableRecei
           </div>
         </div>
 
-        {onNavigateTab && (
+        {onOpenRescue && (
           <div className="receipt-tab-action">
             <button
               type="button"
               className="btn-open-scenario"
-              onClick={() => onNavigateTab('rescue')}
+              onClick={onOpenRescue}
             >
               🚨 Open in Rescue Mesh Dashboard →
             </button>
@@ -185,154 +173,7 @@ export function HumanReadableReceipt({ text, onNavigateTab }: HumanReadableRecei
     );
   }
 
-  // 2. AIR-GAP CONFIGURATION PACKAGE
-  if (parsedEnvelope && parsedEnvelope.messageType === 'airgap_package') {
-    const pkg = parsedEnvelope.payload as ConfigPackage;
-
-    return (
-      <div className="human-receipt-card airgap-receipt">
-        <div className="receipt-banner">
-          <div className="receipt-meta-row">
-            <span className="badge-airgap-status quarantined">Configuration package</span>
-            <span className="badge-category">{pkg.version || 'v1.0'}</span>
-            <span className="badge-id mono">{pkg.packageId}</span>
-          </div>
-          <h3 className="receipt-title">{pkg.packageName || 'Air-Gap Configuration Package'}</h3>
-        </div>
-
-        <div className="receipt-content-body">
-          <div className="receipt-info-row">
-            <span className="info-icon">⚙️</span>
-            <div className="info-text">
-              <strong>Target Asset:</strong> <code className="mono">{pkg.targetAssetId}</code>
-            </div>
-          </div>
-
-          <div className="receipt-info-row">
-            <span className="info-icon">👤</span>
-            <div className="info-text">
-              <strong>Reported author:</strong> {pkg.authorOperator || 'Operator'} ({pkg.authorDeviceId || parsedEnvelope.originDeviceId})
-            </div>
-          </div>
-
-          {pkg.description && (
-            <div className="receipt-description-box">
-              <p>{pkg.description}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="receipt-provenance-bar">
-          <div className="prov-status">
-            <span aria-hidden="true">●</span>
-            <span><strong>Package details from received text</strong></span>
-          </div>
-          <div className="prov-details mono">
-            <span>Asset SHA-256 Digest: {pkg.contentDigestSha256?.slice(0, 16)}...</span>
-          </div>
-        </div>
-
-        {onNavigateTab && (
-          <div className="receipt-tab-action">
-            <button
-              type="button"
-              className="btn-open-scenario"
-              onClick={() => onNavigateTab('airgap')}
-            >
-              Open Air-Gap View →
-            </button>
-          </div>
-        )}
-
-        <details className="raw-details-toggle">
-          <summary>Technical Envelope JSON (click to inspect wire payload)</summary>
-          <pre className="raw-json-block mono">{text}</pre>
-        </details>
-      </div>
-    );
-  }
-
-  // 3. SUPPLY CHAIN CUSTODY HANDOVER
-  if (parsedEnvelope && (parsedEnvelope.messageType === 'trace_handover' || parsedEnvelope.messageType === 'trace_acceptance')) {
-    const payload = parsedEnvelope.payload as Partial<ShipmentRecord & HandoverEvent>;
-    const isHandover = parsedEnvelope.messageType === 'trace_acceptance';
-
-    return (
-      <div className="human-receipt-card trace-receipt">
-        <div className="receipt-banner">
-          <div className="receipt-meta-row">
-            <span className="badge-trace-status">📦 {isHandover ? 'CUSTODY HANDOVER' : 'SHIPMENT RECORD'}</span>
-            <span className="badge-id mono">{payload.shipmentId || payload.handoverId}</span>
-          </div>
-          <h3 className="receipt-title">{payload.itemDescription || 'Pharmaceutical Cold-Chain Shipment'}</h3>
-        </div>
-
-        <div className="receipt-content-body">
-          {payload.quantity && (
-            <div className="receipt-info-row">
-              <span className="info-icon">📊</span>
-              <div className="info-text">
-                <strong>Quantity:</strong> <span className="highlight-stat">{payload.quantity} {payload.unit}</span>
-              </div>
-            </div>
-          )}
-
-          {payload.senderOrganization && (
-            <div className="receipt-info-row">
-              <span className="info-icon">🏢</span>
-              <div className="info-text">
-                <strong>Origin:</strong> {payload.senderOrganization} ({payload.originLocation || 'Depot'})
-              </div>
-            </div>
-          )}
-
-          {payload.intendedReceiver && (
-            <div className="receipt-info-row">
-              <span className="info-icon">🏥</span>
-              <div className="info-text">
-                <strong>Destination:</strong> {payload.intendedReceiver} ({payload.destinationLocation || 'Field Hospital'})
-              </div>
-            </div>
-          )}
-
-          {payload.notes && (
-            <div className="receipt-description-box">
-              <p>{payload.notes}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="receipt-provenance-bar">
-          <div className="prov-status">
-            <span aria-hidden="true">●</span>
-            <span><strong>Custody details from received text</strong></span>
-          </div>
-          <div className="prov-details mono">
-            <span>Holder Device: <code>{payload.currentHolderDeviceId || payload.toDeviceId || parsedEnvelope.originDeviceId}</code></span>
-          </div>
-        </div>
-
-        {onNavigateTab && (
-          <div className="receipt-tab-action">
-            <button
-              type="button"
-              className="btn-open-scenario"
-              onClick={() => onNavigateTab('trace')}
-            >
-              📦 Inspect Custody Chain in Trace View →
-            </button>
-          </div>
-        )}
-
-        <details className="raw-details-toggle">
-          <summary>Technical Envelope JSON (click to inspect wire payload)</summary>
-          <pre className="raw-json-block mono">{text}</pre>
-        </details>
-      </div>
-    );
-  }
-
-  // 4. GENERIC STRUCTURED JSON
+  // Generic structured JSON
   if (genericJson) {
     return (
       <div className="human-receipt-card generic-json-receipt">
@@ -360,6 +201,6 @@ export function HumanReadableReceipt({ text, onNavigateTab }: HumanReadableRecei
     );
   }
 
-  // 5. REGULAR PLAIN TEXT
+  // Regular plain text
   return <p>{text}</p>;
 }
