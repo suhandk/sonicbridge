@@ -40,7 +40,7 @@ test('physical sender UI confirms a PCM peer through synthetic microphone captur
   });
   await page.getByRole('button',{name:'Start Audio',exact:true}).click();
   await page.getByLabel('What would you like to send?').fill('Acoustic sender check');
-  await page.getByRole('button',{name:'Send through speaker'}).click();
+  await page.getByRole('button',{name:'Start transmission'}).click();
   const monitor=page.getByLabel('Transfer monitor');
   await expect(monitor).toContainText('Delivery confirmed',{timeout:50000});
   await expect(page.locator('body')).toHaveAttribute('data-peer-received','Acoustic sender check');
@@ -57,8 +57,9 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
   await page.goto('/');
   await page.keyboard.press('Tab'); await expect(page.getByRole('link',{name:'Skip to transfer controls'})).toBeFocused();
   await page.getByRole('button',{name:'Start Audio',exact:true}).click();
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button',{name:'Listen with microphone'}).click();
-  await expect(page.getByRole('heading',{name:'Receiver ready'})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Listening for a nearby sender'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Resume plot'})).toBeVisible();
   await page.getByRole('button',{name:'Resume plot'}).click();
   await expect(page.locator('canvas')).toBeVisible();
@@ -79,4 +80,34 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
     const targets=await page.locator('button:visible,summary:visible,select:visible').evaluateAll(nodes => nodes.every(n => n.getBoundingClientRect().height>=44));
     expect(targets).toBe(true);
   }
+});
+
+test('engagement accepts one send and can be cancelled immediately', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
+  await page.getByRole('button', { name: 'Simulation · local PCM' }).click();
+  await page.getByLabel('What would you like to send?').fill('Cancel this transfer');
+  const send = page.getByRole('button', { name: 'Run PCM simulation' });
+  // The local clock is accelerated. Cancel on the first committed engagement frame.
+  await send.evaluate(button => new Promise<void>(resolve => {
+    const composer = button.closest('.composer')!;
+    const observer = new MutationObserver(() => {
+      if (!composer.matches('[data-engaging=true]')) return;
+      const cancel = [...composer.querySelectorAll('button')].find(b => b.textContent === 'Cancel transfer' && b.offsetHeight);
+      if (!cancel) return;
+      observer.disconnect();
+      cancel.click();
+      resolve();
+    });
+    observer.observe(composer, { attributes: true, childList: true, subtree: true });
+    (button as HTMLButtonElement).click();
+    (button as HTMLButtonElement).click();
+  }));
+  await expect(page.getByRole('alert')).toContainText(/cancel/i);
+  await expect(page.locator('.inbox article')).toHaveCount(0);
+  await expect(send).toBeEnabled();
+  await send.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByLabel('Transfer monitor')).toContainText('Delivery confirmed');
+  await expect(page.locator('.inbox article')).toHaveCount(1);
 });

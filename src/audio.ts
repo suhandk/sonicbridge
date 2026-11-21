@@ -47,6 +47,9 @@ export class AudioLink implements PacketChannel {
   onDevices?: (devices: MediaDeviceInfo[]) => void;
   onCapture?: (pcm: Float32Array, rate: number) => void;
   onWaveform?: (pcm: Float32Array, sampleRate: number) => void;
+  onPlaybackEnd?: () => void;
+  private playbackStarted = 0;
+  get playbackSeconds() { return this.speaker && this.context ? this.context.currentTime - this.playbackStarted : undefined; }
   get sampleRate() { return this.context?.sampleRate; }
   get listening() { return !!this.stream; }
   get canSelectOutput() { return typeof window.AudioContext === 'function' && typeof (AudioContext.prototype as RoutableContext).setSinkId === 'function'; }
@@ -131,7 +134,7 @@ export class AudioLink implements PacketChannel {
       const pcm = await modem.encode(bytes);
       if (signal.aborted) throw aborted(signal);
       if (this.context !== context) throw new Error('Audio route stopped during encoding.');
-      this.running(); this.onWaveform?.(pcm, context.sampleRate);
+      this.running();
       await this.play(pcm, signal, context);
     } finally {
       if (this.modem === modem) {
@@ -149,14 +152,14 @@ export class AudioLink implements PacketChannel {
       const finish = (error?: unknown) => {
         if (finished) return; finished = true;
         speaker.onended = null; signal.removeEventListener('abort', cancel); speaker.disconnect();
-        if (this.speaker === speaker) { this.speaker = undefined; this.finishPlayback = undefined; }
+        if (this.speaker === speaker) { this.speaker = undefined; this.finishPlayback = undefined; this.onPlaybackEnd?.(); }
         if (error) reject(error); else resolve();
       };
       const cancel = () => { speaker.stop(); finish(aborted(signal)); };
       this.finishPlayback = finish; speaker.onended = () => finish();
       if (signal.aborted) { finish(aborted(signal)); return; }
       signal.addEventListener('abort', cancel, { once: true });
-      try { speaker.start(); } catch (error) { finish(error); }
+      try { speaker.start(); this.playbackStarted = context.currentTime; this.onWaveform?.(pcm, context.sampleRate); } catch (error) { finish(error); }
     });
   }
   async listen(level: (rms: number) => void, failure: (error: unknown) => void) {
