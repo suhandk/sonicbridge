@@ -62,6 +62,36 @@ export class AudioLink implements PacketChannel {
     this.playbackGain = value;
     if (this.gain && this.context) this.gain.gain.setTargetAtTime(value, this.context.currentTime, 0.02);
   }
+  async playBeaconChirp(freqStart = 1500, freqEnd = 2500, durationSec = 0.35, gainLevel = 1.0): Promise<void> {
+    if (!this.context || this.context.state !== 'running') return;
+    const ctx = this.context;
+    const osc = ctx.createOscillator();
+    const chirpGain = ctx.createGain();
+
+    chirpGain.gain.setValueAtTime(0.001, ctx.currentTime);
+    chirpGain.gain.exponentialRampToValueAtTime(Math.min(1.0, Math.max(0.05, gainLevel)), ctx.currentTime + 0.05);
+    chirpGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freqStart, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(freqEnd, ctx.currentTime + durationSec);
+
+    osc.connect(chirpGain);
+    chirpGain.connect(this.gain || ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + durationSec);
+
+    return new Promise(resolve => {
+      osc.onended = () => {
+        try {
+          chirpGain.disconnect();
+          osc.disconnect();
+        } catch { /* ignore */ }
+        resolve();
+      };
+    });
+  }
   async setProtocol(protocol: 'fast' | 'fastest') {
     await this.modem?.setProtocol(protocol);
   }

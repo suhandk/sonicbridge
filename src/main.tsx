@@ -35,6 +35,7 @@ import type { IncidentReport } from './types/rescue';
 import type { ConfigPackage } from './types/airgap';
 import type { ShipmentRecord, HandoverEvent } from './types/trace';
 import { HumanReadableReceipt } from './components/HumanReadableReceipt';
+import { AcousticRangeBeacon } from './components/AcousticRangeBeacon';
 
 
 import './style.css';
@@ -756,6 +757,15 @@ function App() {
                 receiving={role === 'receive'}
                 verified={!busy && !error && (session?.phase === 'completed' || session?.phase === 'received')}
                 caption={playing ? 'Speaker playback' : awaitingReply && running && !session?.receive ? 'Waiting for acknowledgement' : listening ? 'Microphone open' : physical ? 'Physical Audio' : 'Simulation PCM'}
+              />
+
+              <AcousticRangeBeacon
+                audioLink={link.current}
+                session={session}
+                packets={packets}
+                mode={mode}
+                speedMode={speedMode}
+                onAlert={msg => setNotice(msg)}
               />
             </div>
 
