@@ -13,6 +13,7 @@ import { byteLength, createModem, decodeBinaryFixture } from './modem';
 import { decodePacket, Kind, MAX_TRANSFER_BYTES, MAX_PAYLOAD } from './protocol';
 import { DEFAULT_DATA_ATTEMPTS, StopAndWait, type Events, type PacketEvent } from './transport';
 import { SignalView, type SignalFrame } from './signal-view';
+import { SpeechDictation } from './speech-dictation';
 import { active, duration, SessionMonitor, type Session, type Progress } from './session-monitor';
 import { AcousticRanging } from './ranging';
 import { simulateTransfer } from './simulation';
@@ -73,6 +74,7 @@ function App() {
   const [ready, setReady] = useState(false), [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
   const [text, setText] = useState('');
+  const [dictating, setDictating] = useState(false);
   const [notice, setNotice] = useState('Start audio to prepare the local modem.');
   const [, setLevel] = useState(0), [receipts, setReceipts] = useState<Receipt[]>([]);
   const [incomingReceipt, setIncomingReceipt] = useState<Receipt>();
@@ -531,6 +533,11 @@ function App() {
                       <>
                         <label htmlFor="message">What would you like to send?</label>
                         <textarea id="message" placeholder="Type a message…" disabled={!!busy} maxLength={MAX_TRANSFER_BYTES} value={text} onChange={e => { setText(e.target.value); }} spellCheck={false} />
+                        {role === 'send' && (
+                          <SpeechDictation ready={ready} disabled={!!busy || running || replying} inputDevice={inputDevice}
+                            onActive={setDictating}
+                            onTranscript={transcript => setText(draft => draft.trimEnd() ? `${draft.trimEnd()} ${transcript}` : transcript)} />
+                        )}
                       </>
                     ) : (
                       <>
@@ -559,7 +566,7 @@ function App() {
                       <button
                         className="send-button primary"
                         title={!ready ? 'Start Audio first' : !valid ? 'Choose content within the size limit' : replying ? 'Returning an acoustic reply' : undefined}
-                        disabled={!ready || !valid || !!busy || running || replying}
+                        disabled={!ready || !valid || !!busy || running || replying || dictating}
                         onClick={() => { if (!sendAbort.current) void run(physical ? 'Acoustic transfer…' : 'PCM protocol simulation…', send); }}
                       >
                         {physical ? 'Start transmission' : 'Run PCM simulation'} ↗

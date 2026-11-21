@@ -333,6 +333,9 @@ body {margin:0;background:var(--space)}
 .transducer-stage { position: absolute; inset: 0; pointer-events: none; }
 .transducer-stage canvas { display: block; width: 100%; height: 100%; }
 .transducer:has(.transducer-stage[data-rendered]) .driver { visibility: hidden; }
+.speech-dictation { display: grid; gap: 6px; }
+.speech-dictation .actions { margin: 0; }
+.speech-dictation p { margin: 0; }
 .instrument-grid .driver { width: min(56%, 184px); }
 .instrument-grid .scope .plot { height: 94px; }
 @media (max-width: 990px) {

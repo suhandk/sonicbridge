@@ -37,7 +37,7 @@ test('local runtime, Unicode simulation, WAV export/import, and permission denia
   await page.getByRole('button', { name: 'Physical Audio', exact: true }).click();
   await page.getByLabel('What would you like to send?').fill('speaker test');
   await page.getByRole('button', { name: 'Start transmission' }).click();
-  await expect(page.getByRole('status')).toContainText('HELLO');
+  await expect(page.getByRole('status', { name: '', exact: true })).toContainText('HELLO');
   await page.getByRole('button', { name: 'Cancel transfer' }).click();
   await expect(page.getByRole('alert')).toContainText('cancelled', { timeout: 15000 });
   await expect(page.locator('.inbox article')).toHaveCount(2);

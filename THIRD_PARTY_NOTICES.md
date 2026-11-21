@@ -9,6 +9,8 @@ The production archive includes this inventory and full MIT notices in `vendor/T
 | FFT routines included in ggwave | Copyright Takuya OOURA, 1996–2001. The author permits use, copying, modification and distribution for any purpose without fee and requests a reference when modified. | [Included source](https://github.com/ggerganov/ggwave/blob/e035c75be1916ed8c0d1a38e823981366da3971e/src/fft.h) · [Author’s FFT package and terms](https://www.kurims.kyoto-u.ac.jp/~ooura/fft.html) |
 | React 19.3.1, React DOM 19.3.1, Scheduler 0.28.0 | Copyright (c) Meta Platforms, Inc. and affiliates. MIT. | [React repository](https://github.com/facebook/react) |
 | @noble/hashes 2.4.0 | Copyright (c) 2022 Paul Miller. MIT. | [noble-hashes](https://github.com/paulmillr/noble-hashes) |
+| Transformers.js 4.3.2 and ONNX Runtime Web | Apache-2.0 and MIT, respectively. | [Transformers.js](https://github.com/huggingface/transformers) · [ONNX Runtime license](https://github.com/microsoft/onnxruntime/blob/main/LICENSE) |
+| Moonshine Tiny English, quantized ONNX | Copyright (c) 2025 Useful Sensors, Inc. (dba Moonshine AI). MIT. ONNX conversion by ONNX Community, pinned to revision `a6da1241cd305dcd64eab1edbd615f2bb9aabb95`. | [Model files](https://huggingface.co/onnx-community/moonshine-tiny-ONNX/tree/a6da1241cd305dcd64eab1edbd615f2bb9aabb95) · [Upstream license](https://github.com/moonshine-ai/moonshine/blob/main/LICENSE) |
 
 Archivo and JetBrains Mono are bundled locally through Fontsource. Both fonts use the SIL Open Font License 1.1. The production notices include their full license texts. Three.js powers the optional lunar scene under the MIT license, reproduced in the production notices.
 

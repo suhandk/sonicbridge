@@ -21,7 +21,7 @@ async function handler(request, response) {
     const file = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(root + sep) || !(await stat(file)).isFile()) { response.writeHead(404, headers).end('Not found'); return; }
     const bytes = await readFile(file);
-    response.writeHead(200, { ...headers, 'Content-Type': types[extname(file)] ?? 'text/plain; charset=utf-8', 'Content-Length': bytes.length, 'Cache-Control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
+    response.writeHead(200, { ...headers, 'Content-Type': extname(file) === '.onnx' ? 'application/octet-stream' : types[extname(file)] ?? 'text/plain; charset=utf-8', 'Content-Length': bytes.length, 'Cache-Control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache' });
     response.end(request.method === 'HEAD' ? undefined : bytes);
   } catch { response.writeHead(404, headers).end('Not found'); }
 }

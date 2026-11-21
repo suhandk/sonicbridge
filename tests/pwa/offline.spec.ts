@@ -12,9 +12,13 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
     const manifest = await (await fetch('/offline-assets.json')).json();
     const missing: string[] = [];
     for (const path of manifest.assets) if (!await caches.match(new URL(path, location.href).href)) missing.push(path);
-    return { missing, assets: manifest.assets as string[] };
+    const speechIsCached = await Promise.all((manifest.optionalSpeech as string[]).map(async path => !!await caches.match(new URL(path, location.href).href)));
+    return { missing, assets: manifest.assets as string[], optionalSpeech: manifest.optionalSpeech as string[], speechIsCached };
   });
   expect(inventory.missing).toEqual([]);
+  expect(inventory.optionalSpeech.some(path => path.includes('moonshine-tiny-ONNX/onnx/'))).toBe(true);
+  expect(inventory.optionalSpeech.some(path => path.includes('speech-runtime/') && path.endsWith('.wasm'))).toBe(true);
+  expect(inventory.speechIsCached.some(Boolean)).toBe(false);
   expect(inventory.assets.some(path => path.includes('modem-worker-'))).toBe(true);
   expect(inventory.assets).toContain('./vendor/ggwave-module.mjs');
   expect(inventory.assets).toContain('./vendor/ggwave.js');
