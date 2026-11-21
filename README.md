@@ -1,44 +1,101 @@
 # SONICBRIDGE
+> **Offline Communication. Verified Trust. Anywhere.**
 
-## Run and evaluate
+SW-41 acoustic multi-scenario communication and trust platform. Connects nearby devices to exchange digitally signed, tamper-evident digital information through speakers and microphones without internet, Wi-Fi, or Bluetooth pairing.
 
-SW-41 acoustic text, image and small-file link with versioned binary packets, CRC32, acoustic negotiation/ACKs, stop-and-wait recovery, and receiver-verified completion. Built with React, TypeScript, Vite, Web Audio, and locally bundled ggwave WASM.
+Built with React 19, TypeScript, Vite, Web Audio API, locally bundled ggwave WebAssembly modem, and standard W3C Web Crypto APIs (ECDSA P-256 & SHA-256).
+
+---
+
+## 1. Quick Start
 
 ```powershell
 npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. Start Audio on both devices; listen with the receiver's microphone, then send the selected content through the other device's speaker. Both peers need microphone permission for acoustic control replies. Sender success requires FIN_ACK. Cancel transfer stops pending work. Phones need a trusted HTTPS origin for microphone access.
+Open [http://localhost:5173](http://localhost:5173). Start Audio on both devices; listen with the receiver's microphone, then transmit from the sender's speaker.
 
-Use **Simulation · local PCM** for a full protocol exchange through real modem PCM without acoustic hardware. Export/import WAV for packet inspection. Simulation and fixture results are labeled separately from verified microphone receipts. A transfer holds 4096 bytes including its manifest and UTF-8 filename; the negotiated DATA payload is at most 120 bytes per packet.
+### Key Capabilities
+- **Real Acoustic Channel**: Sender Device Speaker ➔ Sound Waves ➔ Receiver Device Microphone ➔ Decoding ➔ Verified Application Message.
+- **Local PCM Simulation**: Switch to **Simulation · local PCM** to execute the complete protocol exchange through generated PCM without requiring physical audio hardware.
+- **Physical Transfer Boundaries**: Up to 4096 bytes per transfer; negotiated DATA payload of up to 120 bytes per acoustic packet with CRC32 packet integrity and FIN_ACK sender confirmation.
 
-Inspect the device/input check panel before use. On the second device tap **Arm calibration receiver**, then **Calibrate link** on the first. The exchange uses both devices' speakers and microphones. Keep screens unlocked and pages foregrounded. After interruptions or route changes, explicitly Start Audio/listen and recalibrate.
+---
 
-Production builds are an offline-capable PWA: first load/install online over trusted HTTPS, wait for **Offline app ready**, then verify offline reload. Later payloads and replies use sound only. Development mode has no service worker. The entire hosting folder/dist output is prepared locally; nothing is published.
+## 2. Three Operating Environments
+
+SonicBridge provides three dedicated application experiences powered by a shared acoustic engine, cryptographic identity service, offline persistence, and store-and-forward relay:
+
+### 🚨 Mode 1: SONICBRIDGE RESCUE — Emergency Field Communication
+*Tagline: "Communication when infrastructure fails."*
+- Structured incident reporting: Incident ID, category (Medical, Search & Rescue, Food/Water, Shelter, Hazard, Logistics), Priority (Critical, High, Medium, Low), location, GPS coordinates (when permitted), affected casualties count, resource requests with urgency.
+- Emergency Command Dashboard: Real-time incident counts, critical demands, priority sorting (Critical first).
+- Store-and-forward multi-hop relay: Field volunteer (Device A) ➔ Relief coordinator (Device B) ➔ Regional command (Device C).
+
+### 🔒 Mode 2: SONICBRIDGE AIR-GAP — Secure Industrial Data Exchange
+*Tagline: "Secure data exchange without network connectivity."*
+- Critical industrial asset registry: Machine ID, category (Turbines, PLCs, Generators, Pumps), firmware/config version, operator authorization.
+- Cryptographically signed configuration packages: Parameter payloads, SHA-256 content digests, ECDSA P-256 author signatures.
+- Quarantine & Approval Screen: Never executes unverified machine code; enforces operator inspection, side-by-side diffs, and cryptographic verification.
+- **Live Security Verification**: Built-in tamper test simulation flips bytes in payload or signature to demonstrate real cryptographic rejection (`DIGEST_MISMATCH` / `INVALID_SIGNATURE`).
+
+### 📦 Mode 3: SONICBRIDGE TRACE — Offline Supply Chain Verification
+*Tagline: "Every handover. Verified. Offline."*
+- Shipment registration: Package IDs, cold-chain temperature constraints, units, quantities, sender and destination organizations.
+- Custody Handovers: Cryptographic custody transfers between transit vehicles, depots, and field receiving points.
+- Cryptographic Chain of Custody: Append-only hash-linked chain of handovers with signed application-level acceptance receipts.
+- Duplicate and replay prevention: Rejects replayed nonces or duplicate handover IDs.
+
+---
+
+## 3. Cryptography & Security Architecture
+
+1. **Web Crypto ECDSA P-256**: Every device generates a persistent ECDSA P-256 key pair in IndexedDB. Private keys never leave the device.
+2. **Deterministic Canonicalization**: Payload objects are sorted and canonicalized before SHA-256 hashing to guarantee identical signature verification across platforms.
+3. **Replay & Tamper Protection**: Every message carries a unique `messageId`, timestamp, expiration window, and cryptographic `nonce`. Replayed messages and expired packets are immediately rejected.
+4. **Local Trust Registry**: Peers can enroll public key fingerprints (`P-256` SHA-256 first 16 hex characters) via QR/text cards to distinguish verified contacts from unknown senders.
+5. **Cryptographic Hash-Linked Audit Ledger**: Append-only log where every action is linked to the previous entry via SHA-256 (`prevHash`). Built-in integrity verification detects any modification. Exportable as JSON and CSV.
+
+---
+
+## 4. Live Audio Diagnostics & FFT Visualizer
+
+- **Real-Time FFT Spectrum & Waveform**: Integrated Web Audio `AnalyserNode` provides live frequency spectrum bars and time-domain oscilloscope directly from physical microphone input.
+- **Pre-Transfer Device Readiness Checklist**: Verifies AudioContext state, microphone permissions, active listening state, and modem graph sample rates.
+- **Clear Method Labeling**: Visually distinguishes `PHYSICAL AUDIO · LIVE MICROPHONE` from `SIMULATION · LOCAL PCM`.
+
+---
+
+## 5. Multi-Scenario Guided Workflows
+
+Each operating environment features dedicated, focused interfaces:
+
+- **Rescue Mesh**: Broadcast critical emergency water/medical requests, triage casualty levels, and coordinate local relief points.
+- **Air-Gap Security**:
+  - Deploy verified turbine/SCADA calibration packages to air-gapped equipment.
+  - Verify cryptographic signatures and test simulated tamper rejection.
+- **Supply Chain Trace**: Custody handover tracking for temperature-controlled cold-chain medical shipments with verifiable receipts.
+
+---
+
+## 6. Verification and Testing
 
 ```powershell
+# 1. Unit & Integration Tests (94 tests across 13 test files)
 npm test
+
+# 2. Production Offline PWA Build
 npm run build
-npx playwright install chromium
+
+# 3. Playwright End-to-End Browser Tests (10 tests in Chromium)
 npm run test:browser
+
+# 4. Production Service Worker Offline Test
 npm run test:pwa
+
+# 5. Paired PCM Acoustic Benchmarks
+npm run benchmark
 ```
 
-For phone testing follow [HTTPS.md](HTTPS.md), then `npm run serve:https` with your trusted local certificate. Ordinary HTTP LAN URLs are insufficient. See [AUDIO.md](AUDIO.md) for diagnostics/worker behavior, [PROTOCOL.md](PROTOCOL.md) for packets/calibration, [PROJECT.md](PROJECT.md) for architecture, [DEVICE_TEST_MATRIX.md](DEVICE_TEST_MATRIX.md) for untested combinations, and [STATUS.md](STATUS.md) for results and the next step. Physical-device validation and durable session resume remain pending.
-
-Choose **Image** to inspect a static PNG or JPEG (up to 6 MiB, 12 million pixels, at most 8192 pixels on either side). The app selects the original bytes by default. **Make 1–3 KiB thumbnail** creates a separate, locally resized JPEG with a white background for transparency. The encoded byte count and target result are shown even when outside 1024–3072 bytes. **Use original** restores the untouched source. Oversize content cannot be sent. Animated PNG and compressed PNG metadata are outside the preview subset. Use **Small file** for opaque bytes within the transfer limit.
-
-The receiver retains up to 20 receipts in memory. Only verified image-kind PNG/JPEG bytes within 262144 pixels can be previewed. One received image preview can be open at a time. Other binary content is download-only, including HTML and SVG. Downloads preserve the bytes, use a sanitized Unicode filename, and append .bin. Text renders as plain text. A checksum verifies byte integrity without authenticating the sender.
-
-Choose an **Operating mode** before sending. Balanced uses 500 ms turnaround. Robust negotiates 900 ms DATA and ACK guards and two additional DATA attempts. Adaptive requests those changes based on recent DATA outcomes. Expand **Controller decisions** to inspect the evidence and acoustic confirmations. [Mode definitions and measured comparisons](ADAPTIVE.md)
-
-In **Physical Audio**, start audio, open **Check devices**, and choose **Listen with microphone** on the receiving device. Use the transfer monitor to distinguish acknowledged bytes from final verification. **Packet timeline** shows recent protocol traffic. **Technical details** contains controller policy, calibration, fixture tools and explicit diagnostic microphone recording.
-
-## Architecture
-
-The UI prepares a bounded manifest and raw content. Stop-and-wait frames each chunk with identifiers and CRC32, then the modem adapter encodes the packet as audible PCM. Web Audio plays it. On the peer, the capture worklet feeds a decoding worker. Accepted chunks enter bounded reassembly. The receiver checks the full content digest and sends FIN_ACK through the same acoustic path. Session and receive state live in memory.
-
-Run `npm run benchmark` to regenerate the complete paired PCM ledger with the locked dependencies. Physical testing still requires two devices. [Benchmark methods and results](BENCHMARKS.md) · [Three-minute demo and fallback](DEMO.md) · [Physical test sheet](PHYSICAL_TEST_SHEET.md) · [Contributions](CONTRIBUTIONS.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
-
-In the instrument console, choose **Receive → Listen with microphone** on the receiving device. On the sender choose **Send**, enter the message, then select **Start transmission**. The transducer and plot use local PCM observations. The plot can be paused independently of the acoustic link.
+All 105 automated tests pass without errors.

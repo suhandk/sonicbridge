@@ -10,8 +10,14 @@ The production archive includes this inventory and full MIT notices in `vendor/T
 | React 19.3.1, React DOM 19.3.1, Scheduler 0.28.0 | Copyright (c) Meta Platforms, Inc. and affiliates. MIT. | [React repository](https://github.com/facebook/react) |
 | @noble/hashes 2.4.0 | Copyright (c) 2022 Paul Miller. MIT. | [noble-hashes](https://github.com/paulmillr/noble-hashes) |
 
-Geist and IBM Plex Mono are bundled locally through Fontsource. Both fonts use the SIL Open Font License 1.1. The production notices include their full license texts.
+Archivo and JetBrains Mono are bundled locally through Fontsource. Both fonts use the SIL Open Font License 1.1. The production notices include their full license texts. Three.js powers the optional lunar scene under the MIT license, reproduced in the production notices.
 
 The upstream ggwave script and the installed npm script matched byte-for-byte at SHA-256 `f3792b5c185345a35a935ca68a5064b97f979d13fbba0062ff16f6b3b31a6113`. The module-worker copy appends an export to that script. [Upstream JavaScript](https://github.com/ggerganov/ggwave/blob/e035c75be1916ed8c0d1a38e823981366da3971e/bindings/javascript/ggwave.js)
 
 Development tools include Vite, its React plugin and Vitest (MIT), TypeScript and Playwright Test (Apache-2.0). The lockfile records the installed dependency graph. [Vite](https://github.com/vitejs/vite) · [Vitest](https://github.com/vitest-dev/vitest) · [TypeScript](https://github.com/microsoft/TypeScript) · [Playwright](https://github.com/microsoft/playwright)
+
+The bundled lunar surface and elevation textures are resized WebP derivatives of the [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/), NASA's Scientific Visualization Studio. Surface imagery comes from LRO/LROC and elevation data from LRO/LOLA.
+
+The Earth surface texture is a resized WebP of [earth_atmos_2048.jpg](https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg) from the Three.js examples.
+
+The separate cloud layer uses a resized WebP mask from [earth_clouds_1024.png](https://threejs.org/examples/textures/planets/earth_clouds_1024.png) in the Three.js examples.

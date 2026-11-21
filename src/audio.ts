@@ -24,6 +24,7 @@ export class AudioLink implements PacketChannel {
   private stream?: MediaStream;
   private input?: MediaStreamAudioSourceNode;
   private capture?: AudioWorkletNode;
+  private analyser?: AnalyserNode;
   private speaker?: AudioBufferSourceNode;
   private finishPlayback?: (error?: unknown) => void;
   private transmitting = false;
@@ -53,12 +54,16 @@ export class AudioLink implements PacketChannel {
   get sampleRate() { return this.context?.sampleRate; }
   get listening() { return !!this.stream; }
   get canSelectOutput() { return typeof window.AudioContext === 'function' && typeof (AudioContext.prototype as RoutableContext).setSinkId === 'function'; }
+  getAnalyser() { return this.analyser; }
   subscribe(receive: (bytes: Uint8Array) => void) { this.receivers.add(receive); return () => { this.receivers.delete(receive); }; }
   private report(update: Partial<AudioDiagnostics>) { this.diagnostics = { ...this.diagnostics, ...update }; this.onDiagnostics?.(this.diagnostics); }
   setPlaybackGain(value: number) {
     if (!Number.isFinite(value) || value < 0.1 || value > 1) throw new Error('Playback gain must be between 10% and 100%.');
     this.playbackGain = value;
     if (this.gain && this.context) this.gain.gain.setTargetAtTime(value, this.context.currentTime, 0.02);
+  }
+  async setProtocol(protocol: 'fast' | 'fastest') {
+    await this.modem?.setProtocol(protocol);
   }
   async refreshDevices() {
     if (!navigator.mediaDevices?.enumerateDevices) { this.report({ deviceNote: 'This browser does not expose device enumeration. Use OS audio settings.' }); return []; }
@@ -196,6 +201,9 @@ export class AudioLink implements PacketChannel {
       if (this.context !== context || epoch !== this.captureEpoch) throw new Error('Microphone startup cancelled.');
       stage = 'Connecting microphone capture';
       this.input = context.createMediaStreamSource(stream);
+      this.analyser = context.createAnalyser();
+      this.analyser.fftSize = 256;
+      this.input.connect(this.analyser);
       const capture = this.capture = new AudioWorkletNode(context, 'pcm-capture');
       this.ignoreBefore = context.currentTime;
       this.lastCapture = performance.now();
@@ -233,6 +241,7 @@ export class AudioLink implements PacketChannel {
     const wasListening = !!this.stream;
     this.captureEpoch++; if (this.watchdog) clearInterval(this.watchdog); this.watchdog = undefined;
     this.capture?.port.close(); this.capture?.disconnect(); this.input?.disconnect();
+    this.analyser?.disconnect(); this.analyser = undefined;
     this.stream?.getTracks().forEach(track => { track.onended = null; track.onmute = null; track.stop(); });
     this.capture = undefined; this.input = undefined; this.stream = undefined;
     if (wasListening) this.report({ permission: `${this.permission?.state ?? 'granted'} (input stopped)` });

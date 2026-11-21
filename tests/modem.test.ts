@@ -45,6 +45,24 @@ describe('actual locally bundled ggwave WASM', () => {
     const rx = await createModem(48000, factory);
     try { expect(decodeFixture(rx, new Float32Array(48000))).toEqual([]); } finally { rx.dispose(); }
   });
+  it('encodes and decodes using fastest protocol with ~50% shorter PCM duration', async () => {
+    const txFast = await createModem(48000, factory);
+    const txFastest = await createModem(48000, factory);
+    const rx = await createModem(48000, factory);
+    try {
+      txFast.protocol = 'fast';
+      txFastest.protocol = 'fastest';
+      const text = 'TURBO_SPEED_140B_' + 'X'.repeat(120);
+      const pcmFast = txFast.encode(text);
+      const pcmFastest = txFastest.encode(text);
+      expect(pcmFastest.length).toBeLessThan(pcmFast.length * 0.6);
+      expect(decodeFixture(rx, pcmFastest)).toEqual([text]);
+    } finally {
+      txFast.dispose();
+      txFastest.dispose();
+      rx.dispose();
+    }
+  });
 });
 describe('WAV validation', () => {
   it('rejects truncated and malformed chunks', () => {
