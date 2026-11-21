@@ -46,6 +46,7 @@ export class AudioLink implements PacketChannel {
   onDiagnostics?: (diagnostics: AudioDiagnostics) => void;
   onInterrupted?: (reason: string) => void;
   onDevices?: (devices: MediaDeviceInfo[]) => void;
+  onRangeCapture?: (pcm: Float32Array, startTime: number) => void;
   onCapture?: (pcm: Float32Array, rate: number) => void;
   onWaveform?: (pcm: Float32Array, sampleRate: number) => void;
   onPlaybackEnd?: () => void;
@@ -168,7 +169,7 @@ export class AudioLink implements PacketChannel {
     } catch (error) { if (this.context === context) this.stop(); throw error; }
     finally { this.starting = false; }
   }
-  async send(bytes: Uint8Array, signal: AbortSignal) {
+  async send(bytes: Uint8Array, signal: AbortSignal, showWaveform = true) {
     const context = this.running(), modem = this.modem!;
     if (!this.listening) throw new Error('Listen with microphone before sending; acoustic ACKs require reception.');
     if (this.transmitting) throw new Error('Speaker is already transmitting.');
@@ -180,7 +181,7 @@ export class AudioLink implements PacketChannel {
       if (signal.aborted) throw aborted(signal);
       if (this.context !== context) throw new Error('Audio route stopped during encoding.');
       this.running();
-      await this.play(pcm, signal, context);
+      await this.play(pcm, signal, context, showWaveform);
     } finally {
       if (this.modem === modem) {
         await modem.reset();
@@ -188,7 +189,22 @@ export class AudioLink implements PacketChannel {
       }
     }
   }
-  private play(pcm: Float32Array, signal: AbortSignal, context: AudioContext) {
+  async playRangeProbe(pcm: Float32Array, signal: AbortSignal) {
+    const context = this.running();
+    if (!this.listening || this.transmitting) throw new Error('Acoustic ranging audio is busy.');
+    signal.throwIfAborted();
+    this.transmitting = true;
+    this.ignoreBefore = Infinity;
+    try {
+      await this.play(pcm, signal, context, false);
+    } finally {
+      if (this.context === context) {
+        this.transmitting = false;
+        this.ignoreBefore = context.currentTime + .25;
+      }
+    }
+  }
+  private play(pcm: Float32Array, signal: AbortSignal, context: AudioContext, showWaveform: boolean) {
     const buffer = context.createBuffer(1, pcm.length, context.sampleRate);
     buffer.copyToChannel(Float32Array.from(pcm), 0);
     const speaker = this.speaker = context.createBufferSource(); speaker.buffer = buffer; speaker.connect(this.gain!);
@@ -197,14 +213,14 @@ export class AudioLink implements PacketChannel {
       const finish = (error?: unknown) => {
         if (finished) return; finished = true;
         speaker.onended = null; signal.removeEventListener('abort', cancel); speaker.disconnect();
-        if (this.speaker === speaker) { this.speaker = undefined; this.finishPlayback = undefined; this.onPlaybackEnd?.(); }
+        if (this.speaker === speaker) { this.speaker = undefined; this.finishPlayback = undefined; if (showWaveform) this.onPlaybackEnd?.(); }
         if (error) reject(error); else resolve();
       };
       const cancel = () => { speaker.stop(); finish(aborted(signal)); };
       this.finishPlayback = finish; speaker.onended = () => finish();
       if (signal.aborted) { finish(aborted(signal)); return; }
       signal.addEventListener('abort', cancel, { once: true });
-      try { speaker.start(); this.playbackStarted = context.currentTime; this.onWaveform?.(pcm, context.sampleRate); } catch (error) { finish(error); }
+      try { speaker.start(); this.playbackStarted = context.currentTime; if (showWaveform) this.onWaveform?.(pcm, context.sampleRate); } catch (error) { finish(error); }
     });
   }
   async listen(level: (rms: number) => void, failure: (error: unknown) => void) {
@@ -258,6 +274,7 @@ export class AudioLink implements PacketChannel {
         if (!pcm) return;
         this.lastCapture = performance.now();
         this.onCapture?.(pcm, context.sampleRate);
+        if (data.startTime !== undefined) this.onRangeCapture?.(pcm, data.startTime);
         const recycle = (buffer: Float32Array) => { if (this.capture === capture) capture.port.postMessage({ recycle: buffer }, [buffer.buffer as ArrayBuffer]); };
         if (this.transmitting || (data.startTime ?? -1) <= this.ignoreBefore) { recycle(pcm); return; }
         void modem.decode(pcm).then(result => {

@@ -24,6 +24,12 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(inventory.assets.some(path => path.endsWith('.woff2'))).toBe(true);
   const sceneChunk = inventory.assets.find(path => /moon-relay-.*\.js$/.test(path));
   expect(sceneChunk).toBeTruthy();
+  async function dismissReceipt(title: string, content: string) {
+    const popup = page.getByRole('dialog', { name: title });
+    await expect(popup).toContainText(content);
+    await popup.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(popup).toBeHidden();
+  }
   await context.setOffline(true);
   const offlineNavigation = await page.reload();
   expect(offlineNavigation?.fromServiceWorker()).toBe(true);
@@ -43,6 +49,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByLabel('Operating mode').selectOption('Robust');
   await page.getByLabel('What would you like to send?').fill('Offline नमस्ते 🌉');
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Message received', 'Offline नमस्ते 🌉');
   await expect(page.locator('.inbox article').first()).toContainText('Offline नमस्ते 🌉');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Delivery confirmed');
   await page.getByText('Packet timeline').click();
@@ -67,6 +74,9 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByRole('button', { name: 'Use original' }).click();
   await expect(page.getByText('1 × 1 px · Original bytes')).toBeVisible();
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  const imagePopup = page.getByRole('dialog', { name: 'Image received' });
+  await expect(imagePopup.getByRole('img', { name: 'Image transfer preview' })).toBeVisible();
+  await dismissReceipt('Image received', '橋.png');
   const receipt = page.locator('.inbox article').first();
   await expect(receipt).toContainText('橋.png');
   await receipt.getByRole('button', { name: 'Preview image' }).click();
@@ -93,6 +103,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByRole('button', { name: /Make 1/ }).click();
   await expect(page.getByText(/Within target of 1024/)).toBeVisible();
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Image received', 'large-thumb.jpg');
   await expect(receipt).toContainText('large-thumb.jpg', { timeout: 20000 });
   await receipt.getByRole('button', { name: 'Preview image' }).click();
   await expect.poll(() => receipt.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
@@ -101,6 +112,10 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const binary = Buffer.concat([Buffer.from('<script>throw Error("execution")</script>'), Buffer.from([0,255,128])]);
   await page.getByLabel('Select a small file').setInputFiles({ name: 'sample.html', mimeType: 'text/html', buffer: binary });
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  const filePopup = page.getByRole('dialog', { name: 'File received' });
+  await expect(filePopup).toContainText('sample.html');
+  await expect(filePopup.locator('img, iframe, script, object')).toHaveCount(0);
+  await dismissReceipt('File received', 'sample.html');
   await expect(receipt).toContainText('sample.html');
   await expect(receipt.locator('img, iframe, script, object')).toHaveCount(0);
   await expect(page.getByText(binary.length + ' / ' + binary.length + ' unique content bytes acknowledged')).toBeVisible();
@@ -111,9 +126,11 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const message = page.getByLabel('What would you like to send?');
   await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: null }));
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Message received', 'rescue_incident');
   await expect(receipt).toContainText('STRUCTURED DATA');
   await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: { title: 'Unsigned incident' } }));
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Message received', 'Unsigned incident');
   await expect(receipt).toContainText('Unsigned incident');
   await expect(receipt).toContainText('Sender details from received text');
   expect(errors).toEqual([]); expect(badResponses).toEqual([]);

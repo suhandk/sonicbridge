@@ -34,26 +34,60 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const halo=haloTexture();
   const glow=new T.Sprite(new T.SpriteMaterial({map:halo,transparent:true,opacity:.22,blending:T.AdditiveBlending,depthWrite:false}));
   glow.scale.set(4,2.6,1);world.add(glow);
-  const earthMat = new T.MeshStandardMaterial({roughness: .65, color: 0xe6efff});
+  const earthMat = new T.MeshStandardMaterial({roughness: .73, color: 0xf5f8ff});
   const earth = new T.Mesh(sphere, earthMat);
-  earth.scale.setScalar(mobile ? .135 : .21);
-  earth.rotation.set(.15, -1.36, -.21, 'ZXY');
+  earth.rotation.set(.15, .06, -.21, 'ZXY');
   world.add(earth);
+  const atmosphereRadius = 1.095;
+  const sunDirection = sun.position.clone().normalize();
   const atmosphere = new T.Mesh(sphere, new T.ShaderMaterial({
-    vertexShader: 'varying vec3 n; void main(){n=normalMatrix*normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `varying vec3 n; void main() {
-      float rim = pow(1.0 - abs(normalize(n).z), 4.0);
-      gl_FragColor = vec4(.27,.59,1.,rim*.42);
-    }`,
-    transparent: true, blending: T.AdditiveBlending, depthWrite: false,
+    uniforms: {
+      outerRadius: {value: atmosphereRadius},
+      sunDirection: {value: sunDirection},
+    },
+    vertexShader: `
+      varying vec3 viewNormal;
+      void main() {
+        viewNormal = normalMatrix * normal;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float outerRadius;
+      uniform vec3 sunDirection;
+      varying vec3 viewNormal;
+      void main() {
+        vec3 normal = normalize(viewNormal);
+        // Orthographic impact radius, in Earth radii.
+        float impact = length(normal.xy) * outerRadius;
+        float altitude = max(impact - 1.0, 0.0);
+        float sunlit = smoothstep(-0.45, 0.64, dot(normal, sunDirection));
+
+        // Dense lower air gives the bright limb. The thinner haze spreads farther out.
+        float insideFade = smoothstep(0.88, 1.0, impact);
+        float edgeFade = 1.0 - smoothstep(1.06, outerRadius, impact);
+        float limb = insideFade * exp(-altitude * 97.0) * 0.66;
+        float haze = insideFade * exp(-altitude * 34.0) * 0.37;
+        vec3 lowerAir = vec3(0.24, 0.68, 1.0);
+        vec3 upperAir = vec3(0.055, 0.29, 1.0);
+        float lighting = mix(0.19, 1.0, sunlit) * edgeFade;
+        float density = limb + haze;
+        vec3 color = mix(upperAir, lowerAir, limb / max(density, 0.001));
+        gl_FragColor = vec4(color, density * lighting);
+      }
+    `,
+    transparent: true,
+    blending: T.AdditiveBlending,
+    depthWrite: false,
   }));
-  atmosphere.scale.setScalar(1.025);
+  atmosphere.scale.setScalar(atmosphereRadius);
   earth.add(atmosphere);
+
   const cloudMaterial = new T.MeshStandardMaterial({
-    color: 0xf4f8ff, transparent: true, opacity: .64, depthWrite: false, roughness: 1,
+    color: 0xf4f8ff, transparent: true, opacity: .58, depthWrite: false, roughness: 1, bumpScale: .009,
   });
   const clouds = new T.Mesh(sphere, cloudMaterial);
-  clouds.scale.setScalar(1.016);
+  clouds.scale.setScalar(1.008);
   earth.add(clouds);
   const count=mobile?1800:3800;
   const starPos=new Float32Array(count*3),starColor=new Float32Array(count*3);
@@ -169,7 +203,7 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const orbitTilt = new T.Euler(.86, -.38, -.28, 'ZYX');
   const eccentricity = .16;
   const minorAxis = Math.sqrt(1 - eccentricity ** 2);
-  // The origin of this ellipse is its near focus, where the Moon sits.
+  // The origin of this ellipse is its near focus, where Earth sits.
   function orbitPoint(point: T.Vector3, anomaly: number) {
     return point.set(Math.cos(anomaly) - eccentricity, Math.sin(anomaly) * minorAxis, 0)
       .applyEuler(orbitTilt);
@@ -188,7 +222,7 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     }),
   ), new T.LineBasicMaterial({color: 0x71839a, transparent: true, opacity: .23}));
   world.add(orbit);
-  const earthRadius = mobile ? .155 : .25;
+  const distantMoonRadius = mobile ? .155 : .25;
   const base=new T.Vector3(),end=new T.Vector3();
   const beamGeo=new T.BufferGeometry().setFromPoints([base,end]);
   const beamMat=new T.LineBasicMaterial({color:orange,transparent:true,opacity:.14});
@@ -228,11 +262,11 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     const radius = compact ? .96 : mobile ? Math.min(span * .58, 1.12) : Math.min(span * .34, 1.73);
     const heroHeight = hero?.offsetHeight ?? h;
     const diskBottom = Math.min(h, heroHeight) - 66;
-    const moonY = compact ? -.52 : mobile ? 3 - (diskBottom / h) * 6 + radius : -.12;
-    moon.scale.setScalar(radius);
-    moonRest.set(span * (compact ? -.38 : mobile ? .14 : .49), moonY, 0);
-    earthRest.set(span * (compact ? .4 : .76), moonY + radius * (compact ? 1.8 : 1.43), .4);
-    earth.scale.setScalar(compact ? .5 : earthRadius);
+    const earthY = compact ? -.52 : mobile ? 3 - (diskBottom / h) * 6 + radius : -.12;
+    earth.scale.setScalar(radius);
+    earthRest.set(span * (compact ? -.38 : mobile ? .14 : .49), earthY, 0);
+    moonRest.set(span * (compact ? .4 : .76), earthY + radius * (compact ? 1.8 : 1.43), .4);
+    moon.scale.setScalar(compact ? .5 : distantMoonRadius);
     orbit.scale.setScalar(radius * 1.48);
     satellite.scale.setScalar(compact ? .64 : mobile ? .32 : .48);
     terminal.scale.copy(satellite.scale);
@@ -255,11 +289,11 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     moon.position.copy(moonRest).add(solarOffset);
     moon.position.x += Math.sin(lunarPhase) * .08;
     moon.position.y += (1 - Math.cos(lunarPhase)) * .065;
-    orbit.position.copy(moon.position);
-    glow.position.set(moon.position.x+moon.scale.x*.75,moon.position.y+moon.scale.x*(state.transferring?.56:.45),-1);
+    orbit.position.copy(earth.position);
+    glow.position.set(earth.position.x+earth.scale.x*.75,earth.position.y+earth.scale.x*(state.transferring?.56:.45),-1);
     tipMat.color.setHex(now<failUntil?0xff4d5e:now<warnUntil?0xffd23d:orange);
     tipMat.color.multiplyScalar(state.listening||state.transferring?1:.52);
-    earth.rotation.y = -1.36 + rotation * .24;
+    earth.rotation.y = .06 + rotation * .24;
     clouds.rotation.y = .1 + rotation * .018;
     // Uniform time advances mean anomaly. Kepler's equation gives the actual position.
     const meanAnomaly = (1.26 - rotation * .37) % (2 * Math.PI);
@@ -269,18 +303,18 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
         (1 - eccentricity * Math.cos(angle));
     }
     orbitPoint(orbitDirection, angle);
-    satellite.position.copy(moon.position).addScaledVector(orbitDirection, orbit.scale.x);
+    satellite.position.copy(earth.position).addScaledVector(orbitDirection, orbit.scale.x);
     satellite.rotation.set(.21 + Math.sin(angle) * .12, .28 + Math.cos(angle) * .22, angle + Math.PI / 2);
     terminalOffset.set(0, -.12, .255).applyEuler(satellite.rotation).multiplyScalar(satellite.scale.y);
     terminal.position.copy(satellite.position).add(terminalOffset);
-    terminalDirection.copy(earth.position).sub(terminal.position).normalize();
+    terminalDirection.copy(moon.position).sub(terminal.position).normalize();
     terminal.quaternion.setFromUnitVectors(up, terminalDirection);
     base.copy(terminal.position).addScaledVector(terminalDirection, .15 * terminal.scale.y);
-    end.copy(earth.position).addScaledVector(terminalDirection, -earth.scale.x * 1.028);
+    end.copy(moon.position).addScaledVector(terminalDirection, -moon.scale.x * 1.01);
     const linkLength = base.distanceTo(end);
-    const distanceAlongLink = nearest.subVectors(moon.position, base).dot(terminalDirection);
+    const distanceAlongLink = nearest.subVectors(earth.position, base).dot(terminalDirection);
     nearest.copy(base).addScaledVector(terminalDirection, T.MathUtils.clamp(distanceAlongLink, 0, linkLength));
-    const clearPath = nearest.distanceToSquared(moon.position) > moon.scale.x ** 2;
+    const clearPath = nearest.distanceToSquared(earth.position) > earth.scale.x ** 2;
     beam.visible = false;
     beamPositions.setXYZ(0, base.x, base.y, base.z);
     beamPositions.setXYZ(1, end.x, end.y, end.z);
@@ -351,7 +385,10 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     },undefined,()=>{if(alive)fail();});
     if(type==='surface'){tex.colorSpace=T.SRGBColorSpace;moonMat.map=tex;}else if(type==='relief') moonMat.bumpMap=tex;
     else if(type==='earth') { tex.colorSpace=T.SRGBColorSpace; earthMat.map=tex; }
-    else cloudMaterial.alphaMap=tex;
+    else {
+      cloudMaterial.alphaMap = tex;
+      cloudMaterial.bumpMap = tex;
+    }
     textures.push(tex);
   }
   return {

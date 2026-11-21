@@ -6,7 +6,7 @@ export const CRC_BYTES = 4;
 export const MAX_TRANSFER_BYTES = 4096;
 export const MAX_CHUNKS = 128;
 export const BASELINE = 1; // All v1 packets: ggwave AUDIBLE_FAST, variable length, no DSS.
-export enum Kind { HELLO = 1, CAPS, DATA, ACK, FIN, FIN_ACK, CANCEL, CONTENT_HELLO, CONTENT_CAPS, CONTENT_DATA_ALT, SET_POLICY, POLICY_ACK }
+export enum Kind { HELLO = 1, CAPS, DATA, ACK, FIN, FIN_ACK, CANCEL, CONTENT_HELLO, CONTENT_CAPS, CONTENT_DATA_ALT, SET_POLICY, POLICY_ACK, RANGE_TIMING, RANGE_RESULT }
 export interface Packet { kind: Kind; session: number; transfer: number; seq: number; payload: Uint8Array }
 export function payloadCapacity(limit = MAX_BYTES) {
   if (!Number.isInteger(limit) || limit < HEADER_BYTES + CRC_BYTES + 15 || limit > MAX_BYTES) throw new Error('Unsupported decoded modem limit.');
@@ -22,8 +22,8 @@ export function crc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 function shape(kind: Kind, length: number) {
-  const sizes: Partial<Record<Kind, number>> = { [Kind.HELLO]: 15, [Kind.CAPS]: 7, [Kind.ACK]: 0, [Kind.FIN]: 8, [Kind.FIN_ACK]: 8, [Kind.CANCEL]: 0, [Kind.CONTENT_HELLO]: 15, [Kind.CONTENT_CAPS]: 7, [Kind.SET_POLICY]: 1, [Kind.POLICY_ACK]: 1 };
-  if (kind < Kind.HELLO || kind > Kind.POLICY_ACK || !Number.isInteger(kind) || ((kind === Kind.DATA || kind === Kind.CONTENT_DATA_ALT) ? length < 1 : length !== sizes[kind])) throw new Error('Invalid packet type or payload length.');
+  const sizes: Partial<Record<Kind, number>> = { [Kind.HELLO]: 15, [Kind.CAPS]: 7, [Kind.ACK]: 0, [Kind.FIN]: 8, [Kind.FIN_ACK]: 8, [Kind.CANCEL]: 0, [Kind.CONTENT_HELLO]: 15, [Kind.CONTENT_CAPS]: 7, [Kind.SET_POLICY]: 1, [Kind.POLICY_ACK]: 1, [Kind.RANGE_TIMING]: 4, [Kind.RANGE_RESULT]: 4 };
+  if (kind < Kind.HELLO || kind > Kind.RANGE_RESULT || !Number.isInteger(kind) || ((kind === Kind.DATA || kind === Kind.CONTENT_DATA_ALT) ? length < 1 : length !== sizes[kind])) throw new Error('Invalid packet type or payload length.');
 }
 function uint(value: number, max: number, nonzero = false) {
   if (!Number.isInteger(value) || value < (nonzero ? 1 : 0) || value > max) throw new Error('Invalid packet identifier.');
