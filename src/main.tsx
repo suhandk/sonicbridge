@@ -14,7 +14,7 @@ import { decodePacket, Kind, MAX_TRANSFER_BYTES, MAX_PAYLOAD } from './protocol'
 import { DEFAULT_DATA_ATTEMPTS, StopAndWait, type Events, type PacketEvent } from './transport';
 import { SignalView, type SignalFrame } from './signal-view';
 import { active, duration, SessionMonitor, type Session, type Progress } from './session-monitor';
-import { AcousticRanging, type RangeResult } from './ranging';
+import { AcousticRanging } from './ranging';
 import { simulateTransfer } from './simulation';
 import { readWav, writeWav } from './wav';
 
@@ -43,8 +43,8 @@ type Receipt = { file?: VerifiedContent; text: string; source: string; time: str
 function App() {
   const [audioLink] = useState(() => new AudioLink());
   const link = useRef(audioLink);
-  const [distance, setDistance] = useState<RangeResult>();
-  const [ranging] = useState(() => new AcousticRanging(audioLink, setDistance));
+  // Keep answering acoustic ranging requests for peers that display timing estimates.
+  const [ranging] = useState(() => new AcousticRanging(audioLink, () => {}));
   const transport = useRef<StopAndWait | undefined>(undefined);
   const sendAbort = useRef<AbortController | undefined>(undefined);
   const calibration = useRef<Calibration | undefined>(undefined);
@@ -117,7 +117,7 @@ function App() {
     state(phase, detail, at) {
       setNotice(detail);
       if (phase === 'negotiating' || phase === 'receiving') {
-        ranging.cancel(); setDistance(undefined);
+        ranging.cancel();
         setSession(old => phase === 'receiving' && old?.phase === 'receiving' ? old : { start: at, last: at, phase, receive: phase === 'receiving', virtual: mode === 'simulation', policy: 'Balanced', retries: 0 });
       } else setSession(old => old && ({ ...old, phase, last: at }));
       if (phase === 'receiving') setInitialEta(undefined);
@@ -656,7 +656,7 @@ function App() {
             </div>
 
             <div className="workspace">
-              <SessionMonitor distance={physical ? distance : undefined} previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
+              <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
               <section id="received" className="card results" tabIndex={-1} aria-labelledby="received-title">
                 <div className="card-heading"><h2 id="received-title">Received</h2><span className="mono">{receipts.length} entries</span></div>
                 <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">

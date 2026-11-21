@@ -52,6 +52,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await dismissReceipt('Message received', 'Offline नमस्ते 🌉');
   await expect(page.locator('.inbox article').first()).toContainText('Offline नमस्ते 🌉');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Delivery confirmed');
+  await expect(page.getByLabel('Transfer monitor')).toContainText('Reference range · Under 15 m');
   await page.getByText('Packet timeline').click();
   await expect(page.locator('.timeline ol')).toContainText('FIN_ACK');
   await expect(page.locator('canvas[aria-label="Waveform of sampled PCM"]')).toBeVisible();

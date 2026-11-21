@@ -55,6 +55,8 @@ export const RANGE_TIERS: Record<RangeTier, RangeTierConfig> = {
   },
 };
 
+export const TRANSFER_REFERENCE_RANGE = `Under ${RANGE_TIERS[1].distanceMeters} m`;
+
 export interface RangeExpanderState {
   phase: RangeSearchPhase;
   tier: RangeTier;

@@ -1,7 +1,7 @@
 import { useEffect, useState, type Ref } from 'react';
 import { Kind } from './protocol';
 import type { PacketEvent, TransportState } from './transport';
-import type { RangeResult } from './ranging';
+import { TRANSFER_REFERENCE_RANGE } from './range-expander';
 import type { Policy } from './controller';
 
 export type Progress = { acked: number; total: number; at?: number; rate?: number };
@@ -11,7 +11,7 @@ export const active = (phase?: TransportState) => !!phase && ['negotiating', 'se
 export function duration(seconds: number) {
   const whole = Math.max(0, Math.ceil(seconds)); return whole >= 60 ? `${Math.floor(whole/60)}m ${whole%60}s` : `${whole}s`;
 }
-export function SessionMonitor({ session, progress, events, simulated, estimate, profile, previewRef, distance }: { session?: Session; progress?: Progress; events: PacketEvent[]; simulated: boolean; estimate?: number; profile: string; previewRef: Ref<HTMLDivElement>; distance?: RangeResult }) {
+export function SessionMonitor({ session, progress, events, simulated, estimate, profile, previewRef }: { session?: Session; progress?: Progress; events: PacketEvent[]; simulated: boolean; estimate?: number; profile: string; previewRef: Ref<HTMLDivElement> }) {
   const [now, setNow] = useState(0);
   const running = active(session?.phase);
   useEffect(() => {
@@ -37,9 +37,8 @@ export function SessionMonitor({ session, progress, events, simulated, estimate,
     <div aria-hidden="true" className={'final-track '+(phase === 'completed' ? simulated ? 'simulated' : 'confirmed' : '')}/>
     <p className="fine">{progress ? `${progress.acked} / ${progress.total} unique content bytes ${session?.receive ? 'reassembled' : 'acknowledged'}` : 'Unique payload bytes'}</p>
     <dl className="metrics"><div><dt>{simulated ? 'Simulated elapsed' : 'Elapsed'}</dt><dd>{session ? duration(elapsed) : '—'}</dd></div><div><dt>Estimated remaining</dt><dd>{etaLabel}</dd></div><div><dt>Local retries</dt><dd className={session?.retries ? "retry-count" : undefined} key={session?.retries}>{session ? session.retries : '—'}</dd></div><div><dt>{running ? 'Active profile' : 'Modem profile'}</dt><dd>{session ? profile+' · '+session.policy : '—'}</dd></div></dl>
-    {distance && <p className="fine" role="status">
-      {distance.status === 'measuring' ? 'Measuring device distance…' : distance.status === 'estimated'
-        ? `Estimated distance · ~${distance.metres.toFixed(1)} m` : 'Distance unavailable'}
+    {(phase === 'completed' || phase === 'received') && <p className="fine">
+      Reference range · {TRANSFER_REFERENCE_RANGE}
     </p>}
     <details className="timeline"><summary>Packet timeline <span>{events.length} recent</span></summary>
     {events.length ? <p className="fine">Time from the first retained event. TX marks submission to the modem.</p> : null}

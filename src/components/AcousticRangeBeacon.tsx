@@ -5,6 +5,7 @@ import type { PacketEvent } from '../transport';
 import {
   RangeExpanderEngine,
   RANGE_TIERS,
+  TRANSFER_REFERENCE_RANGE,
   type RangeExpanderState,
   type RangeTier,
 } from '../range-expander';
@@ -26,6 +27,7 @@ export function AcousticRangeBeacon({
   speedMode = 'fast',
   onAlert,
 }: AcousticRangeBeaconProps) {
+  const confirmed = session?.phase === 'completed' || session?.phase === 'received';
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<RangeExpanderEngine | null>(null);
   const lastPacketRef = useRef<PacketEvent | null>(null);
@@ -259,7 +261,8 @@ export function AcousticRangeBeacon({
 
       // Draw Receiver Locked Marker
       if (state.phase === 'found') {
-        const lockDistRatio = Math.min(1.0, (state.detectedAtDistance || 35) / 120);
+        const lockRadius = confirmed ? RANGE_TIERS[1].distanceMeters : (state.detectedAtDistance ?? RANGE_TIERS[1].distanceMeters);
+        const lockDistRatio = Math.min(1.0, lockRadius / RANGE_TIERS[4].distanceMeters);
         const lockR = lockDistRatio * maxR;
 
         // Pulsing green lock ring
@@ -279,7 +282,7 @@ export function AcousticRangeBeacon({
 
         // Lock text
         ctx.font = '10px "IBM Plex Mono", monospace';
-        ctx.fillText(`TARGET LOCKED (~${state.detectedAtDistance || 35}m)`, cx + lockR * 0.7 + 14, cy - lockR * 0.7 + 4);
+        ctx.fillText(confirmed ? TRANSFER_REFERENCE_RANGE : `REFERENCE (~${lockRadius} m)`, cx + lockR * 0.7 + 14, cy - lockR * 0.7 + 4);
       }
 
       // Draw NO RECEIVER Warning Banner overlay on canvas
@@ -321,7 +324,7 @@ export function AcousticRangeBeacon({
 
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [state]);
+  }, [state, confirmed]);
 
   const handleStartBeacon = async () => {
     if (!engineRef.current) return;
@@ -409,9 +412,9 @@ export function AcousticRangeBeacon({
             </div>
 
             <div className="range-stat-box">
-              <span className="stat-label">Estimated Radius:</span>
+              <span className="stat-label">Reference range</span>
               <strong className="stat-value mono">
-                ~{state.estimatedDistanceMeters} meters
+                {confirmed ? TRANSFER_REFERENCE_RANGE : `${state.estimatedDistanceMeters} m`}
               </strong>
             </div>
 
@@ -423,7 +426,7 @@ export function AcousticRangeBeacon({
 
           {/* Status Alert Banner */}
           <div className={`range-status-banner status-${state.phase}`}>
-            {state.statusMessage}
+            {confirmed ? (mode === 'simulation' ? 'Simulation transfer confirmed' : 'Transfer verified') : state.statusMessage}
           </div>
         </div>
       </div>
