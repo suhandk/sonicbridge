@@ -5,3 +5,8 @@ playwright-report/
 *.local
 .certs/
 hosting/*.zip
+
+# Agent skills
+.agents/
+.claude/
+skills-lock.json
