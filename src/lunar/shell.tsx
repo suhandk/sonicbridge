@@ -6,7 +6,7 @@ export function Action({ children, href, primary, onClick }: PropsWithChildren<{
 }
 export function Navbar({open}:{open:()=>void}) {
   return <nav className="lunar-nav" aria-label="Main navigation"><div className="lunar-wrap">
-    <a href="#top" className="lunar-brand" aria-label="SONICBRIDGE home"><i/>SW-41</a>
+    <a href="#top" className="lunar-brand" aria-label="SONICBRIDGE home"><i aria-hidden="true"><b/><b/><b/><b/><b/></i>SONICBRIDGE <small>SW-41</small></a>
     <div className="nav-links"><a href="#how">How it works</a><a href="#workspace" onClick={open}>Console</a></div>
     <Action href="#workspace" primary onClick={open}>Open console</Action>
   </div></nav>;

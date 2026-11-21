@@ -113,3 +113,40 @@ body {margin:0;background:var(--space)}
 .lunar .console-shell {background:transparent}
 .lunar .console-shell>.lunar-wrap {background:var(--space)}
 .lunar .speed-choice strong {display:block;margin-bottom:8px}
+
+/* The type column and orbital illustration share a single, inset cover. */
+.lunar-nav .lunar-wrap {min-height:76px;border-bottom:1px solid #ffffff29}
+.lunar-brand {font-size:17px;letter-spacing:.015em;gap:9px}
+.lunar-brand i {width:28px;height:28px;display:flex;align-items:center;justify-content:center;gap:2px;border-radius:7px}
+.lunar-brand i b {width:2px;height:6px;background:#160b05;border-radius:2px}
+.lunar-brand i b:nth-child(2),.lunar-brand i b:nth-child(4){height:12px}.lunar-brand i b:nth-child(3){height:18px}
+.lunar-brand small {font:11px var(--mono);color:var(--secondary);border-left:1px solid var(--border);padding-left:10px}
+.lunar .lunar-action {min-height:44px;font-size:15px;border-width:1px}
+.lunar .relay-hero {min-height:clamp(620px,88svh,860px);padding-block:112px 80px}
+.lunar .hero-copy h1 {font-size:clamp(50px,6.2vw,91px);line-height:.98;letter-spacing:-.055em}
+.lunar .hero-copy p {font-size:clamp(17px,1.4vw,20px);line-height:1.55;max-width:34ch;margin:24px 0 30px}
+.hero-state {gap:0;align-items:center}.hero-state span {background:none;border:0;padding:0}
+.hero-state span+span {margin-left:15px;padding-left:15px;border-left:1px solid var(--border);border-radius:0}
+.lunar .hero-actions a:last-child {border-color:#ffffff52}
+.effects-control {top:calc(clamp(620px,88svh,860px) - 62px)}
+.lunar .effects-control select {min-height:36px;padding:4px 10px;font:12px var(--mono)}
+.relay-specs {border-top:1px solid #ffffff50}
+@media(max-width:720px){
+  .lunar-nav .lunar-wrap {min-height:60px}.lunar-brand small{display:none}
+  .lunar .relay-hero {min-height:max(680px,94svh);align-items:start;padding:100px 0 32px}
+  .lunar .hero-copy h1 {font-size:clamp(50px,9vw,68px)}
+  .lunar .hero-copy p {margin:14px 0 18px;max-width:31ch}
+  .effects-control {top:calc(max(680px,94svh) - 52px);left:var(--gutter);right:auto}
+  .hero-state{margin-top:16px}
+}
+
+.relay-console-preview {
+  height: 116px;
+  margin-block: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: clip;
+  background: radial-gradient(ellipse at 30% 100%, #281005, #020204 76%);
+}
+.relay-console-preview canvas { display: block; width: 100%; height: 100%; }
+.lunar:has(.effects-control select option:checked[value="Off"]) .relay-console-preview { display: none; }

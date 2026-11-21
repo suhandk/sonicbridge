@@ -18,6 +18,10 @@ The upstream ggwave script and the installed npm script matched byte-for-byte at
 
 Development tools include Vite, its React plugin and Vitest (MIT), TypeScript and Playwright Test (Apache-2.0). The lockfile records the installed dependency graph. [Vite](https://github.com/vitejs/vite) · [Vitest](https://github.com/vitest-dev/vitest) · [TypeScript](https://github.com/microsoft/TypeScript) · [Playwright](https://github.com/microsoft/playwright)
 
+The bundled lunar surface and elevation textures are resized WebP derivatives of the [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/), NASA's Scientific Visualization Studio. Surface imagery comes from LRO/LROC and elevation data from LRO/LOLA.
+
+The Earth surface texture is a resized WebP of [earth_atmos_2048.jpg](https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg) from the Three.js examples.
+
 
 public/vendor/LICENSE.ggwave
 

@@ -25,6 +25,7 @@ export function SessionMonitor({ session, progress, events, simulated, estimate,
   const etaLabel = !running ? '—' : phase === 'finishing' ? 'Awaiting FIN_ACK' : (progress && progress.acked === progress.total) ? 'Verifying' :
     eta !== undefined ? '~' + duration(eta) : estimate !== undefined && estimate > elapsed ? '~' + duration(estimate-elapsed) : 'Estimating';
   return <section className="card monitor" id="monitor" tabIndex={-1} aria-label="Transfer monitor"><div className="card-heading"><h2>Transfer monitor</h2><span className={'pill '+(simulated ? 'simulated' : phase === 'completed' || phase === 'received' ? 'confirmed' : '')}>{simulated ? 'Simulation · ' : ''}{phaseLabel[phase]}</span></div>
+    <div className="relay-console-preview" aria-hidden="true"/>
     <p className="bytes" key={progress?.acked}>{progress ? progress.acked.toLocaleString() : '—'} <small>{progress ? '/ '+progress.total.toLocaleString()+' B' : 'bytes'}</small></p>
     <div className="track" role={progress?.total ? 'progressbar' : undefined} aria-label={progress?.total ? 'Unique payload bytes' : undefined} aria-valuemin={progress?.total ? 0 : undefined} aria-valuenow={progress?.acked} aria-valuemax={progress?.total}><i style={{width: `${progress?.total ? 100*progress.acked/progress.total : 0}%`}}/></div>
     <div aria-hidden="true" className={'final-track '+(phase === 'completed' ? simulated ? 'simulated' : 'confirmed' : '')}/>

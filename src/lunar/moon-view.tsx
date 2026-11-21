@@ -4,15 +4,16 @@ import type { RelayScene, VisualState } from './moon-relay';
 
 type Effects = 'Full'|'Reduced'|'Off';
 const storageKey='sonicbridge.visual-effects';
-function initialEffects():Effects {
+function initialEffects():Effects | null {
   try {const saved=localStorage.getItem(storageKey);if(saved==='Full'||saved==='Reduced'||saved==='Off')return saved;}catch{/* private storage */}
-  return matchMedia('(prefers-reduced-motion:reduce)').matches?'Reduced':'Full';
+  return null;
 }
 export function MoonRelay({listening,transferring,failed,packets}:{listening:boolean;transferring:boolean;failed:boolean;packets:PacketEvent[]}) {
-  const [effects,setEffects]=useState(initialEffects);
+  const [preference,setPreference]=useState(initialEffects);
   const [osReduced,setOsReduced]=useState(()=>matchMedia('(prefers-reduced-motion:reduce)').matches);
   const [unavailable,setUnavailable]=useState(false),[progress,setProgress]=useState(0),[skipped,setSkipped]=useState(false);
-  const reduced=effects==='Reduced'||osReduced, enabled=effects!=='Off'&&!unavailable;
+  const effects=preference ?? (osReduced?'Reduced':'Full');
+  const reduced=effects==='Reduced', enabled=effects!=='Off'&&!unavailable;
   const host=useRef<HTMLDivElement>(null), scene=useRef<RelayScene|null>(null);
   const state=useRef<VisualState>({listening,transferring,failed,reduced});
   const last=useRef<PacketEvent|undefined>(undefined);
@@ -50,7 +51,7 @@ export function MoonRelay({listening,transferring,failed,packets}:{listening:boo
   return <>
     <div className="relay-sky" aria-hidden="true" ref={host}/>
     <div className="effects-control"><label>Visual effects <select value={effects} onChange={e=>{
-      const value=e.target.value as Effects;setEffects(value);setUnavailable(false);
+      const value=e.target.value as Effects;setPreference(value);setUnavailable(false);
       try{localStorage.setItem(storageKey,value);}catch{/* preferences remain available in this tab */}
     }}><option>Full</option><option>Reduced</option><option>Off</option></select></label>
       {unavailable && <small>Static background · WebGL unavailable</small>}
