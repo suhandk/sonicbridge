@@ -58,8 +58,6 @@ function App() {
   const [role, setRole] = useState<'send' | 'receive'>('send');
   const [engagement, setEngagement] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [testingSpeaker, setTestingSpeaker] = useState(false);
-  const speakerTestAbort = useRef<AbortController | undefined>(undefined);
   const [awaitingReply, setAwaitingReply] = useState(false);
   const operationGeneration = useRef(0);
   const [calibrationStatus, setCalibrationStatus] = useState('On the other device, arm the calibration receiver first. Then calibrate from this device.');
@@ -120,7 +118,6 @@ function App() {
       setNotice(detail);
       if (phase === 'negotiating' || phase === 'receiving') {
         ranging.cancel(); setDistance(undefined);
-        speakerTestAbort.current?.abort();
         setSession(old => phase === 'receiving' && old?.phase === 'receiving' ? old : { start: at, last: at, phase, receive: phase === 'receiving', virtual: mode === 'simulation', policy: 'Balanced', retries: 0 });
       } else setSession(old => old && ({ ...old, phase, last: at }));
       if (phase === 'receiving') setInitialEta(undefined);
@@ -178,7 +175,6 @@ function App() {
     };
     audio.onDiagnostics = setDiagnostics; audio.onDevices = setDevices;
     audio.onInterrupted = reason => {
-      speakerTestAbort.current?.abort();
       ranging.cancel();
       discardCapture(); setReplying(false); frame.current = undefined; endMonitor();
       operationGeneration.current++; setBusy(''); setStats(undefined); setMeasurement(undefined);
@@ -187,8 +183,8 @@ function App() {
       sendAbort.current?.abort(new Error(reason)); setReady(false); setListening(false); setLevel(0); setError(reason);
       setCalibrationStatus('Audio interrupted. Start Audio, listen, and recalibrate after selecting your route.');
     };
-    const unregister = registerOffline(setOffline, () => { speakerTestAbort.current?.abort(); ranging.cancel(); calibration.current?.dispose(); transport.current?.dispose(); sendAbort.current?.abort(); audio.stop(); });
-    return () => { speakerTestAbort.current?.abort(); ranging.cancel(); unregister(); audio.onCapture = undefined; recording.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
+    const unregister = registerOffline(setOffline, () => { ranging.cancel(); calibration.current?.dispose(); transport.current?.dispose(); sendAbort.current?.abort(); audio.stop(); });
+    return () => { ranging.cancel(); unregister(); audio.onCapture = undefined; recording.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
   }, []);
 
   function receive(message: string, source: string, file?: VerifiedContent) {
@@ -215,7 +211,6 @@ function App() {
   }
 
   async function run(label: string, action: () => Promise<void>) {
-    speakerTestAbort.current?.abort();
     ranging.cancel();
     const generation = operationGeneration.current;
     setBusy(label); setError('');
@@ -260,7 +255,6 @@ function App() {
   }
 
   function stopListening() {
-    speakerTestAbort.current?.abort();
     ranging.cancel();
     discardCapture(); setReplying(false); endMonitor(); frame.current = undefined;
     calibration.current?.dispose(); calibration.current = undefined; setArmed(false);
@@ -283,7 +277,6 @@ function App() {
 
   async function send() {
     if (sendAbort.current) return;
-    speakerTestAbort.current?.abort();
     const abort = sendAbort.current = new AbortController();
     setEngagement(value => value + 1); setAwaitingReply(false);
     const body = packContent(kind, name, kind === 'text' ? new TextEncoder().encode(text) : draft!.bytes);
@@ -318,7 +311,6 @@ function App() {
   async function sendScenarioPayload(body: Uint8Array, description: string) {
     ranging.cancel();
     if (sendAbort.current) return;
-    speakerTestAbort.current?.abort();
     const abort = sendAbort.current = new AbortController();
     setEngagement(value => value + 1);
     setAwaitingReply(false);
@@ -654,27 +646,12 @@ function App() {
               />
 
               <AcousticRangeBeacon
-                distance={physical ? distance : undefined}
-                retries={session?.retries}
-                simulation={!physical}
-                canTest={physical && ready && !busy && !running && !playing && !replying && distance?.status !== 'measuring'}
-                testing={testingSpeaker}
-                onTest={() => {
-                  if (speakerTestAbort.current) return;
-                  if (ranging.inProgress) {
-                    setNotice('The distance check is finishing. Try the speaker test in a moment.');
-                    return;
-                  }
-                  const controller = new AbortController();
-                  speakerTestAbort.current = controller;
-                  setTestingSpeaker(true);
-                  void link.current.playBeaconChirp(controller.signal).catch(error => {
-                    if (!controller.signal.aborted) setNotice(describeError(error));
-                  }).finally(() => {
-                    speakerTestAbort.current = undefined;
-                    setTestingSpeaker(false);
-                  });
-                }}
+                audioLink={link.current}
+                session={session}
+                packets={packets}
+                mode={mode}
+                speedMode={speedMode}
+                onAlert={msg => setNotice(msg)}
               />
             </div>
 

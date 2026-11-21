@@ -1,4 +1,3 @@
-import { speakerTestTone } from './range-expander';
 import { MAX_BYTES } from './modem';
 import { aborted } from './clock';
 import type { PacketChannel } from './transport';
@@ -64,9 +63,45 @@ export class AudioLink implements PacketChannel {
     this.playbackGain = value;
     if (this.gain && this.context) this.gain.gain.setTargetAtTime(value, this.context.currentTime, 0.02);
   }
-  async playBeaconChirp(signal: AbortSignal) {
-    const context = this.running();
-    await this.playDiagnostic(speakerTestTone(context.sampleRate), signal, context);
+  async playBeaconChirp(freqStart = 1500, freqEnd = 2500, durationSec = 0.35, gainLevel = 1.0): Promise<void> {
+    let ctx = this.context;
+    if (!ctx || ctx.state === 'closed') {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      ctx = new AudioCtx() as RoutableContext;
+      this.context = ctx;
+    }
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch { /* ignore */ }
+    }
+    const osc = ctx.createOscillator();
+    const chirpGain = ctx.createGain();
+    const now = ctx.currentTime;
+    const targetGain = Math.min(1.0, Math.max(0.1, gainLevel));
+
+    chirpGain.gain.setValueAtTime(0.001, now);
+    chirpGain.gain.linearRampToValueAtTime(targetGain, now + 0.04);
+    chirpGain.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(Math.max(200, freqStart), now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(200, freqEnd), now + durationSec);
+
+    osc.connect(chirpGain);
+    chirpGain.connect(this.gain || ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + durationSec);
+
+    return new Promise(resolve => {
+      osc.onended = () => {
+        try {
+          chirpGain.disconnect();
+          osc.disconnect();
+        } catch { /* ignore */ }
+        resolve();
+      };
+    });
   }
   async setProtocol(protocol: 'fast' | 'fastest') {
     await this.modem?.setProtocol(protocol);
@@ -156,11 +191,7 @@ export class AudioLink implements PacketChannel {
   }
   async playRangeProbe(pcm: Float32Array, signal: AbortSignal) {
     const context = this.running();
-    if (!this.listening) throw new Error('Microphone must be listening for ranging.');
-    await this.playDiagnostic(pcm, signal, context);
-  }
-  private async playDiagnostic(pcm: Float32Array, signal: AbortSignal, context: AudioContext) {
-    if (this.transmitting) throw new Error('Speaker is already transmitting.');
+    if (!this.listening || this.transmitting) throw new Error('Acoustic ranging audio is busy.');
     signal.throwIfAborted();
     this.transmitting = true;
     this.ignoreBefore = Infinity;

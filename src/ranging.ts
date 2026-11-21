@@ -83,7 +83,6 @@ export function distanceFromIntervals(senderSeconds: number, receiverSeconds: nu
 
 export class AcousticRanging {
   private active?: AbortController;
-  get inProgress() { return this.active !== undefined; }
 
   constructor(private readonly audio: RangingAudio, private readonly show: (result: RangeResult) => void, private readonly clock: Clock = systemClock) {}
 
