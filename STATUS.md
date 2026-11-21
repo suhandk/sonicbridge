@@ -1,6 +1,12 @@
 # SONICBRIDGE status
 
-Updated: 2026-11-20 (Asia/Calcutta).
+Updated: 2026-11-21 (Asia/Calcutta).
+
+## Instrument console
+
+The local production build includes the CSS transducer, locally bundled Geist and IBM Plex Mono, and a source-labeled PCM plot. Playback samples follow the Web Audio playback clock. The send gesture runs independently of packet scheduling.
+
+The production build, 73 unit tests and offline PWA flow passed. Nine browser regressions passed together and the new engagement test passed in a focused rerun after synchronizing cancellation to the first rendered frame. Checks covered keyboard activation, duplicate activation, immediate cancellation followed by a successful send, denied microphone permission, fake-device audio and reduced motion. At 390, 768 and 1440 px the production page fit the viewport and visible buttons, selectors and disclosure controls measured at least 44 px tall. Offline reload retained the static instrument and both fonts, and generated PCM produced a verified receipt. Physical two-device validation remains pending.
 
 ## Paired evaluation and demonstration
 
@@ -48,7 +54,7 @@ Real audio uses an AudioWorklet plus a dedicated modem DSP worker with bounded r
 | Check | Result |
 | --- | --- |
 | npm run benchmark | PASS twice. All 36 trial records reproduced byte-for-byte, including all incomplete outcomes. SHA-256 of evaluation/results.json: 7e8a79f9b5ffe886aa8de30d150cea23a5a11596eb23af9d40f080c50b6b39dc |
-| npm run build | PASS: strict TypeScript and Vite build; generated whole-build offline inventory/service worker with 16 precached local resources |
+| npm run build | PASS: strict TypeScript and Vite build; generated whole-build offline inventory/service worker with 19 precached local resources |
 | npm test | PASS: **73 tests across 10 files**: seeded sample continuity, cross-rate propagation and finite echoes, existing modem/WAV/packet/transport faults, processing settings, worklet downmix/levels/clipping/silence/pool bounds, runtime byte identity, calibration parsing/arming/stale nonce/cancellation, full bidirectional calibration through actual ggwave PCM, random binary bytes, Unicode names, independent SHA-256 reference, empty files, invalid/oversized manifests, wrong hashes, file cancellation, middle-chunk loss, masked retries, duplicates, exact progress and unsupported peers |
 | npm run test:browser | PASS: **9 Chromium tests**: prior UI/Unicode/WAV/permission checks; complete scripted protocol receive through actual worklet + dedicated worker at forced 44.1 and 48 kHz; cleanup after real context suspend plus injected route/background events; stopped pending-permission stream cleanup; actual Web Audio resampling 48→44.1 and 44.1→48 followed by decode; sender-side FIN_ACK through a real-codec PCM peer feeding a synthetic microphone; keyboard, reduced motion, 44 px control heights at four widths, and a downloaded WAV with exactly five seconds of samples |
 | npm run test:pwa | PASS: **1 production test** on the prepared static server with same-origin CSP/MIME/cache headers. Verified complete cache inventory, offline navigation from service worker, offline worker/embedded WASM/worklet loading, microphone initialization and offline content negotiation/Unicode transfer. Verified original PNG bytes on download, a below-target thumbnail, an oversized 480 × 320 image resized to a 96 × 64 JPEG (2571 bytes in this Chromium run), its verified receiver preview, and exact binary HTML-like content downloaded without inline rendering |

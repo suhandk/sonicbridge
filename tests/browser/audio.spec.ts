@@ -14,6 +14,7 @@ test('effective processing requests, real context suspension, route events and b
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button', { name: 'Listen with microphone' }).click();
   await expect(page.getByRole('button', { name: 'Stop listening' })).toBeEnabled();
   await expect(page.locator('.processing-report')).toContainText('request ignored');
@@ -46,6 +47,7 @@ test('stopping while microphone permission is pending closes the late stream', a
     const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = constraints => new Promise(resolve => { (window as any).resolveMicrophone = async () => { const stream = await gum(constraints); (window as any).lateTracks = stream.getTracks(); resolve(stream); }; });
   });
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button', { name: 'Listen with microphone' }).click();
   await expect(page.getByRole('status')).toContainText('Requesting microphone');
   await page.getByRole('button', { name: 'Stop Audio' }).click();

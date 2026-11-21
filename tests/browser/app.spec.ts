@@ -11,7 +11,7 @@ test('local runtime, Unicode simulation, WAV export/import, and permission denia
   page.on('pageerror', e => errors.push(e.message));
   page.on('request', r => { if (new URL(r.url()).origin !== baseURL && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) foreign.push(r.url()); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Transfer console');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Connect through sound');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
   await page.getByRole('button', { name: 'Simulation · local PCM' }).click();
@@ -32,13 +32,15 @@ test('local runtime, Unicode simulation, WAV export/import, and permission denia
   await expect(page.getByRole('alert')).toContainText('Invalid WAV');
   await page.getByRole('button', { name: 'Physical Audio', exact: true }).click();
   await page.getByLabel('What would you like to send?').fill('speaker test');
-  await page.getByRole('button', { name: 'Send through speaker' }).click();
+  await page.getByRole('button', { name: 'Start transmission' }).click();
   await expect(page.getByRole('status')).toContainText('HELLO');
   await page.getByRole('button', { name: 'Cancel transfer' }).click();
   await expect(page.getByRole('alert')).toContainText('cancelled', { timeout: 15000 });
   await expect(page.locator('.inbox article')).toHaveCount(2);
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button', { name: 'Stop listening' }).click();
   await page.evaluate(() => { navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Test denied', 'NotAllowedError'); }; });
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button', { name: 'Listen with microphone' }).click();
   await expect(page.getByRole('alert')).toContainText('permission was denied');
   await page.getByRole('button', { name: 'Stop Audio' }).click();
@@ -76,6 +78,7 @@ test(`real AudioWorklet and worker decode WAV-fed microphone at ${graphRate} Hz`
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button', { name: 'Listen with microphone' }).click();
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Stop listening' })).toBeEnabled();

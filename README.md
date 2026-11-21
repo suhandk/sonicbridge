@@ -40,3 +40,5 @@ In **Physical Audio**, start audio, open **Check devices**, and choose **Listen 
 The UI prepares a bounded manifest and raw content. Stop-and-wait frames each chunk with identifiers and CRC32, then the modem adapter encodes the packet as audible PCM. Web Audio plays it. On the peer, the capture worklet feeds a decoding worker. Accepted chunks enter bounded reassembly. The receiver checks the full content digest and sends FIN_ACK through the same acoustic path. Session and receive state live in memory.
 
 Run `npm run benchmark` to regenerate the complete paired PCM ledger with the locked dependencies. Physical testing still requires two devices. [Benchmark methods and results](BENCHMARKS.md) · [Three-minute demo and fallback](DEMO.md) · [Physical test sheet](PHYSICAL_TEST_SHEET.md) · [Contributions](CONTRIBUTIONS.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+In the instrument console, choose **Receive → Listen with microphone** on the receiving device. On the sender choose **Send**, enter the message, then select **Start transmission**. The transducer and plot use local PCM observations. The plot can be paused independently of the acoustic link.
