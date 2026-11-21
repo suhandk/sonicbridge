@@ -5,7 +5,7 @@ import type { SonicEnvelope, MessageType, RelayHop } from '../types/envelope';
 const textEncoder = new TextEncoder();
 
 export function getCanonicalSignableData(env: Omit<SonicEnvelope, 'signature' | 'relayHistory'>): Uint8Array {
-  // Canonical representation of all immutable envelope fields
+  // Canonical representation of all immutable envelope fields (hopCount is mutable across relay hops)
   const signable = {
     version: env.version,
     messageId: env.messageId,
@@ -15,7 +15,6 @@ export function getCanonicalSignableData(env: Omit<SonicEnvelope, 'signature' | 
     expiresAt: env.expiresAt,
     nonce: env.nonce,
     payloadDigestSha256: env.payloadDigestSha256,
-    hopCount: env.hopCount,
     maxHops: env.maxHops,
   };
   return textEncoder.encode(canonicalJson(signable));
@@ -90,12 +89,19 @@ export async function verifyEnvelope(envelope: SonicEnvelope, now: number = Date
       };
     }
 
-    // 2. Check hop limits
-    if (envelope.hopCount > envelope.maxHops) {
+    // 2. Check hop limits and integrity
+    if (typeof envelope.hopCount !== 'number' || typeof envelope.maxHops !== 'number' || envelope.hopCount < 0 || envelope.hopCount > envelope.maxHops) {
       return {
         valid: false,
         reason: 'HOP_LIMIT_EXCEEDED',
         detail: `Message hop count (${envelope.hopCount}) exceeds max allowable hops (${envelope.maxHops}).`,
+      };
+    }
+    if (Array.isArray(envelope.relayHistory) && envelope.hopCount < envelope.relayHistory.length) {
+      return {
+        valid: false,
+        reason: 'MALFORMED',
+        detail: `Relay history length (${envelope.relayHistory.length}) exceeds declared hop count (${envelope.hopCount}).`,
       };
     }
 

@@ -87,3 +87,23 @@ export async function createRelayReceipt(
     signature,
   };
 }
+
+export async function verifyRelayReceipt(
+  receipt: RelayReceipt,
+  signerPublicKeyJwk: JsonWebKey
+): Promise<boolean> {
+  try {
+    const publicKey = await importPublicKey(signerPublicKeyJwk);
+    const signable = {
+      receiptId: receipt.receiptId,
+      originalMessageId: receipt.originalMessageId,
+      relayedByDeviceId: receipt.relayedByDeviceId,
+      relayedAt: receipt.relayedAt,
+      hopNumber: receipt.hopNumber,
+    };
+    const signableBytes = textEncoder.encode(canonicalJson(signable));
+    return await verifySignature(publicKey, receipt.signature, signableBytes);
+  } catch {
+    return false;
+  }
+}

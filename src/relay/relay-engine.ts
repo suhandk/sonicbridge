@@ -105,4 +105,27 @@ export class RelayEngine {
   }
 }
 
+/**
+ * Verifies a single RelayHop digital signature.
+ */
+export async function verifyRelayHop(
+  hop: RelayHop,
+  messageId: string,
+  hopNumber: number,
+  signerPublicKeyJwk: JsonWebKey
+): Promise<boolean> {
+  try {
+    const publicKey = await importPublicKey(signerPublicKeyJwk);
+    const hopSignable = {
+      messageId,
+      relayedBy: hop.deviceId,
+      hopNumber,
+      timestamp: hop.timestamp,
+    };
+    return await verifySignature(publicKey, hop.signature, textEncoder.encode(canonicalJson(hopSignable)));
+  } catch {
+    return false;
+  }
+}
+
 export const defaultRelayEngine = new RelayEngine();
