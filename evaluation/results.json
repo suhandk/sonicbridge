@@ -1,0 +1,463 @@
+{
+  "kind": "simulated PCM",
+  "payloadHash": "0cd9015b9705acd678fac1295241ea9230995d11b1f68726afb97510a0c89ae2",
+  "deadlineMs": 120000,
+  "rows": [
+    {
+      "trace": "quiet",
+      "seed": 41,
+      "mode": "Balanced",
+      "outcome": "complete",
+      "elapsedMs": 75181.28805368836,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 41,
+      "mode": "Robust",
+      "outcome": "complete",
+      "elapsedMs": 85148.90575018332,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [
+        "Robust"
+      ],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 41,
+      "mode": "Adaptive",
+      "outcome": "complete",
+      "elapsedMs": 75181.28805368836,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 73,
+      "mode": "Balanced",
+      "outcome": "complete",
+      "elapsedMs": 75142.32365497369,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 73,
+      "mode": "Robust",
+      "outcome": "complete",
+      "elapsedMs": 85104.37821356601,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [
+        "Robust"
+      ],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 73,
+      "mode": "Adaptive",
+      "outcome": "complete",
+      "elapsedMs": 75142.32365497369,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 109,
+      "mode": "Balanced",
+      "outcome": "complete",
+      "elapsedMs": 75194.49363229364,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 109,
+      "mode": "Robust",
+      "outcome": "complete",
+      "elapsedMs": 85163.99131305599,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [
+        "Robust"
+      ],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 109,
+      "mode": "Adaptive",
+      "outcome": "complete",
+      "elapsedMs": 75194.49363229364,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 151,
+      "mode": "Balanced",
+      "outcome": "complete",
+      "elapsedMs": 75209.37787824814,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 151,
+      "mode": "Robust",
+      "outcome": "complete",
+      "elapsedMs": 85181.01038138018,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [
+        "Robust"
+      ],
+      "reason": ""
+    },
+    {
+      "trace": "quiet",
+      "seed": 151,
+      "mode": "Adaptive",
+      "outcome": "complete",
+      "elapsedMs": 75209.37787824814,
+      "verified": 480,
+      "confirmed": 480,
+      "retries": 0,
+      "changes": [],
+      "reason": ""
+    },
+    {
+      "trace": "noise burst",
+      "seed": 41,
+      "mode": "Balanced",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 2,
+      "changes": [],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 41,
+      "mode": "Robust",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 41,
+      "mode": "Adaptive",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 2,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 73,
+      "mode": "Balanced",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 2,
+      "changes": [],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 73,
+      "mode": "Robust",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 73,
+      "mode": "Adaptive",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 2,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 109,
+      "mode": "Balanced",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 109,
+      "mode": "Robust",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 109,
+      "mode": "Adaptive",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 151,
+      "mode": "Balanced",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 2,
+      "changes": [],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 151,
+      "mode": "Robust",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "noise burst",
+      "seed": 151,
+      "mode": "Adaptive",
+      "outcome": "deadline",
+      "elapsedMs": 120000,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 2,
+      "changes": [
+        "Robust"
+      ],
+      "reason": "120 s trial deadline"
+    },
+    {
+      "trace": "weak return",
+      "seed": 41,
+      "mode": "Balanced",
+      "outcome": "failed",
+      "elapsedMs": 77354.42521975313,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 41,
+      "mode": "Robust",
+      "outcome": "failed",
+      "elapsedMs": 77354.42521975313,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 41,
+      "mode": "Adaptive",
+      "outcome": "failed",
+      "elapsedMs": 77354.42521975313,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 73,
+      "mode": "Balanced",
+      "outcome": "failed",
+      "elapsedMs": 76814.52672735725,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 73,
+      "mode": "Robust",
+      "outcome": "failed",
+      "elapsedMs": 76814.52672735725,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 73,
+      "mode": "Adaptive",
+      "outcome": "failed",
+      "elapsedMs": 76814.52672735725,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 109,
+      "mode": "Balanced",
+      "outcome": "failed",
+      "elapsedMs": 73957.14092341189,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 109,
+      "mode": "Robust",
+      "outcome": "failed",
+      "elapsedMs": 73957.14092341189,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 109,
+      "mode": "Adaptive",
+      "outcome": "failed",
+      "elapsedMs": 73957.14092341189,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 151,
+      "mode": "Balanced",
+      "outcome": "failed",
+      "elapsedMs": 74623.5241521423,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 151,
+      "mode": "Robust",
+      "outcome": "failed",
+      "elapsedMs": 74623.5241521423,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    },
+    {
+      "trace": "weak return",
+      "seed": 151,
+      "mode": "Adaptive",
+      "outcome": "failed",
+      "elapsedMs": 74623.5241521423,
+      "verified": 0,
+      "confirmed": 0,
+      "retries": 3,
+      "changes": [],
+      "reason": "Error: CONTENT_CAPS timed out after 4 attempts. Delivery unconfirmed; receiver may have completed."
+    }
+  ]
+}

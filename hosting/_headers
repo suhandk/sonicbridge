@@ -1,0 +1,20 @@
+# Example for static hosts supporting this format. Serve dist at the origin root.
+/*
+  X-Content-Type-Options: nosniff
+  Permissions-Policy: microphone=(self), camera=(), speaker-selection=(self)
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+/sw.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache
+/offline-assets.json
+  Cache-Control: no-cache
+/vendor/*
+  Cache-Control: no-cache
+/capture-worklet.js
+  Cache-Control: no-cache
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
