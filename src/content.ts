@@ -44,10 +44,11 @@ export function verifyContent(body: Uint8Array) {
 }
 export type VerifiedContent = ReturnType<typeof verifyContent>;
 export interface Measurement { goodput: number; chunk: number; modelSeconds: number; elapsed: number }
-// Fit to local 48 kHz AUDIBLE_FAST packet airtime: 20 B = 2.091 s, 140 B = 9.259 s.
-export function estimateTransfer(bodySize: number, chunk = MAX_PAYLOAD, robust = false) {
+// Fit to local 48 kHz AUDIBLE_FAST (and AUDIBLE_FASTEST) packet airtime.
+export function estimateTransfer(bodySize: number, chunk = MAX_PAYLOAD, robust = false, fastest = false) {
   const count = Math.ceil(bodySize / chunk), frame = HEADER_BYTES + CRC_BYTES;
   const packets = 4 + count * 2 + (robust ? 2 : 0);
   const wireBytes = bodySize + packets * frame + 15 + 7 + 8 + 8 + (robust ? 2 : 0);
-  return { count, packets, wireBytes, seconds: packets * (0.896 + 0.5) + wireBytes * 0.05974 + (robust ? count * 0.8 : 0) };
+  const baseSeconds = packets * (0.896 + (fastest ? 0.25 : 0.5)) + wireBytes * 0.05974 + (robust ? count * 0.8 : 0);
+  return { count, packets, wireBytes, seconds: fastest ? baseSeconds * 0.55 : baseSeconds };
 }

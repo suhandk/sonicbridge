@@ -28,12 +28,16 @@ export class PcmChannel implements PacketChannel {
   }
   dispose() { this.receivers.clear(); this.modem.dispose(); }
 }
-export async function simulateTransfer(data: Uint8Array, options: { monitor?: Pick<Events, 'packet' | 'state' | 'policy'>; mode?: OperatingMode; controller?: (snapshot: ControllerSnapshot) => void; sendOptions?: Parameters<StopAndWait['send']>[1]; content?: import('./transport').Events['content']; factory?: ModemFactory; signal?: AbortSignal; waveform?: (pcm: Float32Array, rate: number) => void } = {}) {
+export async function simulateTransfer(data: Uint8Array, options: { monitor?: Pick<Events, 'packet' | 'state' | 'policy'>; mode?: OperatingMode; controller?: (snapshot: ControllerSnapshot) => void; sendOptions?: Parameters<StopAndWait['send']>[1]; content?: import('./transport').Events['content']; factory?: ModemFactory; signal?: AbortSignal; waveform?: (pcm: Float32Array, rate: number) => void; protocol?: 'fast' | 'fastest' } = {}) {
   const clock = new VirtualClock(41);
-  const a = new PcmChannel(await createModem(48000, options.factory), clock, options.waveform);
+  const modemA = await createModem(48000, options.factory);
+  if (options.protocol) modemA.protocol = options.protocol;
+  const a = new PcmChannel(modemA, clock, options.waveform);
   let b: PcmChannel | undefined, tx: StopAndWait | undefined, rx: StopAndWait | undefined;
   try {
-    b = new PcmChannel(await createModem(48000, options.factory), clock);
+    const modemB = await createModem(48000, options.factory);
+    if (options.protocol) modemB.protocol = options.protocol;
+    b = new PcmChannel(modemB, clock);
     a.peer = b; b.peer = a;
     const delivered: Uint8Array[] = [];
     tx = new StopAndWait(a, clock, { ...options.monitor, controller: options.controller }, (() => { let n = 40; return () => ++n; })());

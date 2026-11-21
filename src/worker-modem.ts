@@ -28,6 +28,7 @@ export class WorkerModem {
     const runtimeUrl = new URL(`${import.meta.env.BASE_URL}vendor/ggwave-module.mjs`, location.href).href;
     await this.call({ kind: 'init', sampleRate, runtimeUrl });
   }
+  async setProtocol(protocol: 'fast' | 'fastest') { await this.call({ kind: 'setProtocol', protocol }); }
   async encode(bytes: Uint8Array): Promise<Float32Array> { return (await this.call({ kind: 'encode', bytes })).pcm; }
   decode(pcm: Float32Array): Promise<{ pcm: Float32Array; packets: Uint8Array[] }> { return this.call({ kind: 'decode', pcm }, [pcm.buffer as ArrayBuffer]); }
   async reset() { await this.call({ kind: 'reset' }); }
