@@ -22,6 +22,8 @@ The bundled lunar surface and elevation textures are resized WebP derivatives of
 
 The Earth surface texture is a resized WebP of [earth_atmos_2048.jpg](https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg) from the Three.js examples.
 
+The separate cloud layer uses a resized WebP mask from [earth_clouds_1024.png](https://threejs.org/examples/textures/planets/earth_clouds_1024.png) in the Three.js examples.
+
 
 public/vendor/LICENSE.ggwave
 

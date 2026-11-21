@@ -19,3 +19,5 @@ Development tools include Vite, its React plugin and Vitest (MIT), TypeScript an
 The bundled lunar surface and elevation textures are resized WebP derivatives of the [CGI Moon Kit](https://svs.gsfc.nasa.gov/4720/), NASA's Scientific Visualization Studio. Surface imagery comes from LRO/LROC and elevation data from LRO/LOLA.
 
 The Earth surface texture is a resized WebP of [earth_atmos_2048.jpg](https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg) from the Three.js examples.
+
+The separate cloud layer uses a resized WebP mask from [earth_clouds_1024.png](https://threejs.org/examples/textures/planets/earth_clouds_1024.png) in the Three.js examples.
