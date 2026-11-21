@@ -3,7 +3,7 @@ import { Kind } from '../protocol';
 import type { PacketEvent } from '../transport';
 
 export type VisualState = { listening:boolean; transferring:boolean; failed:boolean; reduced:boolean };
-export interface RelayScene { update(state:VisualState, packets:PacketEvent[]):void; dispose():void }
+export interface RelayScene { update(state:VisualState, packets:PacketEvent[]):void; setPreview(target: HTMLDivElement | null): void; dispose():void }
 
 function haloTexture() {
   const canvas=document.createElement('canvas');canvas.width=canvas.height=128;
@@ -18,7 +18,9 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const mobile=matchMedia('(max-width:720px)').matches;
   const renderer=new T.WebGLRenderer({alpha:true,antialias:!mobile,powerPreference:'low-power'});
   renderer.setPixelRatio(Math.min(devicePixelRatio,mobile?1.25:1.75));
-  renderer.setClearColor(0,0);host.appendChild(renderer.domElement);
+  renderer.setClearColor(0,0);
+  renderer.domElement.setAttribute('aria-hidden', 'true');
+  host.appendChild(renderer.domElement);
   const scene=new T.Scene(), camera=new T.OrthographicCamera(-5,5,3,-3,.1,100);
   camera.position.z=12;
   const world=new T.Group();scene.add(world);
@@ -216,7 +218,7 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   let settle = 0;
   const staticFrame = () => state.reduced;
   const hero = document.querySelector<HTMLElement>('.relay-hero');
-  const consolePreview = document.querySelector<HTMLElement>('.relay-console-preview');
+  let consolePreview: HTMLDivElement | null = null;
   let viewport: HTMLElement = host;
   function layout(){
     const w=viewport.clientWidth,h=viewport.clientHeight;if(!w||!h)return;
@@ -302,6 +304,7 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
       if (show && p.final) tipMat.color.setHex(0xffffff);
     }
     renderer.render(scene,camera);
+    renderer.domElement.dataset.drawn = 'true';
     if (!still) schedule(false);
   }
   function schedule(immediate:boolean){
@@ -314,24 +317,28 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const scroll=()=>{if(!staticFrame())schedule(false);};
   const lost=(e:Event)=>{e.preventDefault();fail();};
   const regions = new Set<Element>();
-  const observer = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) regions.add(entry.target);
-      else regions.delete(entry.target);
-    }
-    const target = hero && regions.has(hero) ? host : consolePreview ?? host;
+  function placeCanvas() {
+    const target = consolePreview && regions.has(consolePreview) ? consolePreview : host;
+    visible = target === host ? !!hero && regions.has(hero) : true;
     if (target !== viewport) {
       viewport = target;
+      delete renderer.domElement.dataset.drawn;
       target.appendChild(renderer.domElement);
       layout();
     }
-    visible = target === host ? !!hero && regions.has(hero) : regions.has(target);
     visibility();
+  }
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (entry.target !== hero && entry.target !== consolePreview) continue;
+      if (entry.isIntersecting) regions.add(entry.target);
+      else regions.delete(entry.target);
+    }
+    placeCanvas();
   });
   const resize = new ResizeObserver(layout);
   resize.observe(host);
   if (hero) { observer.observe(hero); resize.observe(hero); }
-  if (consolePreview) { observer.observe(consolePreview); resize.observe(consolePreview); }
   window.addEventListener('pointermove',move,{passive:true});window.addEventListener('scroll',scroll,{passive:true});
   document.addEventListener('visibilitychange',visibility);renderer.domElement.addEventListener('webglcontextlost',lost);
   const loader=new T.TextureLoader();let finished=0;const textures:T.Texture[]=[halo];
@@ -348,6 +355,20 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     textures.push(tex);
   }
   return {
+    setPreview(target) {
+      if (target === consolePreview) return;
+      if (consolePreview) {
+        observer.unobserve(consolePreview);
+        resize.unobserve(consolePreview);
+        regions.delete(consolePreview);
+      }
+      consolePreview = target;
+      if (target) {
+        observer.observe(target);
+        resize.observe(target);
+      }
+      placeCanvas();
+    },
     update(next,events){
       if(next.failed&&!state.failed) failUntil=performance.now()+650;
       state=next;

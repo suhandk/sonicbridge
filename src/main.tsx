@@ -10,7 +10,7 @@ import { Calibration } from './calibration';
 import { registerOffline, type OfflineState } from './pwa';
 import { byteLength, createModem, decodeBinaryFixture } from './modem';
 import { decodePacket, Kind, MAX_TRANSFER_BYTES, MAX_PAYLOAD } from './protocol';
-import { StopAndWait, type Events, type PacketEvent } from './transport';
+import { DEFAULT_DATA_ATTEMPTS, StopAndWait, type Events, type PacketEvent } from './transport';
 import { SignalView, type SignalFrame } from './signal-view';
 import { active, duration, SessionMonitor, type Session, type Progress } from './session-monitor';
 import { simulateTransfer } from './simulation';
@@ -56,6 +56,7 @@ function App() {
 
   // Identity & Multi-Scenario Navigation State
   const [localIdentity, setLocalIdentity] = useState<DeviceIdentity | null>(null);
+  const [relayPreview, setRelayPreview] = useState<HTMLDivElement | null>(null);
   const [activeTab, setActiveTab] = useState<'transceiver' | 'rescue' | 'airgap' | 'trace' | 'visualizer' | 'trust' | 'relay' | 'audit'>('transceiver');
   const [speedMode, setSpeedMode] = useState<'fastest' | 'fast'>('fastest');
 
@@ -397,7 +398,7 @@ function App() {
       {/* Accessibility skip link */}
       <a className="skip" href="#workspace">Skip to transfer controls</a>
 
-      <MoonRelay listening={listening} transferring={running || playing || replying} failed={!!error} packets={packets}/>
+      <MoonRelay preview={relayPreview} listening={listening} transferring={running || playing || replying} failed={!!error} packets={packets}/>
       <Navbar open={openConsole}/>
       <Hero open={openConsole} ready={ready} listening={listening} physical={physical}/>
       <Guide/>
@@ -759,7 +760,7 @@ function App() {
             </div>
 
             <div className="workspace">
-              <SessionMonitor profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
+              <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
               <section className="card results">
                 <div className="card-heading"><h2>Results</h2><span className="mono">{receipts.length} entries</span></div>
                 <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">
@@ -782,7 +783,7 @@ function App() {
               </section>
             </div>
 
-            {running && session && session.retries >= 2 && <p className="error">Repeated missing replies. Check that the peer is listening and that its speaker can reach this microphone.</p>}
+            {running && session && session.retries >= 2 && <p className="transfer-retry-note">Still retrying. Check that the peer is listening and that its speaker can reach this microphone.</p>}
             <div className="feedback" role="status">{busy ? busy + ' ' : ''}{notice}</div>
 
             <details className="tech">
@@ -801,9 +802,9 @@ function App() {
                       <option>Balanced</option><option>Robust</option><option>Adaptive</option>
                     </select>
                   </label>
-                  <p>{operating === 'Balanced' ? '500 ms DATA and ACK guards. Up to four DATA attempts.' :
-                    operating === 'Robust' ? '900 ms DATA and ACK guards. Up to six DATA attempts after acoustic agreement.' :
-                      'Starts Balanced. Repeated ACK loss requests Robust. Eight clean first-attempt ACKs and a 30 s dwell allow recovery.'}</p>
+                  <p>{operating === 'Balanced' ? '500 ms DATA and ACK guards.' :
+                    operating === 'Robust' ? '900 ms DATA and ACK guards after acoustic agreement.' :
+                      'Starts Balanced. Repeated ACK loss requests Robust. Eight clean first-attempt ACKs and a 30 s dwell allow recovery.'} Up to {DEFAULT_DATA_ATTEMPTS} DATA attempts per packet.</p>
                   {stats && (
                     <>
                       <p>{mode === 'microphone' ? 'Microphone' : 'Simulated PCM'} · sender target {stats.target} · {physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"}</p>

@@ -170,8 +170,9 @@ it('ignores ACKs and HELLO from a completed session during a fresh transfer', as
 it('fails DATA ACK exhaustion without delivering partial content or advancing to FIN', async () => {
   const s = setup(p => p.kind === Kind.ACK ? { drop: true } : undefined);
   try {
-    await expect(s.clock.drive(s.tx.send(data))).rejects.toThrow('ACK timed out after 4 attempts');
-    expect(s.a.log.filter(p => p.kind === Kind.DATA)).toHaveLength(4);
+    await expect(s.clock.drive(s.tx.send(data))).rejects.toThrow('ACK timed out after 8 attempts');
+    expect(s.a.log.filter(p => p.kind === Kind.DATA)).toHaveLength(8);
+    expect(s.diagnostics).toContain('DATA seq 0, attempt 8/8');
     expect(s.a.log.some(p => p.kind === Kind.FIN)).toBe(false); expect(s.delivered).toHaveLength(0);
   } finally { s.close(); }
 });
@@ -306,16 +307,16 @@ it('falls back after reverse ACK loss despite the receiver having advanced, then
   } finally { s.close(); }
 });
 
-it('allows exactly six Robust DATA attempts, never overlapping or blindly repeating after an ACK', async () => {
-  for (const lost of [4, 6]) {
+it('allows exactly eight Robust DATA attempts, never overlapping or blindly repeating after an ACK', async () => {
+  for (const lost of [7, 8]) {
     const s = setup((p, _side, n) => p.kind === Kind.ACK && n <= lost ? { drop: true } : undefined);
     try {
       s.tx.controller.select('Robust');
       const sent = s.clock.drive(s.tx.send(packContent('file', 'x', Uint8Array.of(7)), { content: true }));
-      if (lost === 6) await expect(sent).rejects.toThrow('ACK timed out after 6 attempts');
+      if (lost === 8) await expect(sent).rejects.toThrow('ACK timed out after 8 attempts');
       else await sent;
-      expect(s.a.log.filter(p => p.kind === Kind.DATA || p.kind === Kind.CONTENT_DATA_ALT)).toHaveLength(Math.min(lost + 1, 6));
-      expect(s.content.length).toBe(lost === 6 ? 0 : 1);
+      expect(s.a.log.filter(p => p.kind === Kind.DATA || p.kind === Kind.CONTENT_DATA_ALT)).toHaveLength(Math.min(lost + 1, 8));
+      expect(s.content.length).toBe(lost === 8 ? 0 : 1);
     } finally { s.close(); }
   }
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import { Kind } from './protocol';
 import type { PacketEvent, TransportState } from './transport';
 import type { Policy } from './controller';
@@ -10,7 +10,7 @@ export const active = (phase?: TransportState) => !!phase && ['negotiating', 'se
 export function duration(seconds: number) {
   const whole = Math.max(0, Math.ceil(seconds)); return whole >= 60 ? `${Math.floor(whole/60)}m ${whole%60}s` : `${whole}s`;
 }
-export function SessionMonitor({ session, progress, events, simulated, estimate, profile }: { session?: Session; progress?: Progress; events: PacketEvent[]; simulated: boolean; estimate?: number; profile: string }) {
+export function SessionMonitor({ session, progress, events, simulated, estimate, profile, previewRef }: { session?: Session; progress?: Progress; events: PacketEvent[]; simulated: boolean; estimate?: number; profile: string; previewRef: Ref<HTMLDivElement> }) {
   const [now, setNow] = useState(0);
   const running = active(session?.phase);
   useEffect(() => {
@@ -19,13 +19,18 @@ export function SessionMonitor({ session, progress, events, simulated, estimate,
     return () => clearInterval(timer);
   }, [running, simulated]);
   const elapsed = session ? (Math.max(session.last, running && !simulated ? now : 0) - session.start)/1000 : 0;
+  const lastPacket = events.at(-1);
   const phase = session?.phase ?? 'idle';
   const eta = progress?.rate && progress.acked < progress.total
     ? (progress.total-progress.acked)/progress.rate + 6 : undefined;
   const etaLabel = !running ? '—' : phase === 'finishing' ? 'Awaiting FIN_ACK' : (progress && progress.acked === progress.total) ? 'Verifying' :
     eta !== undefined ? '~' + duration(eta) : estimate !== undefined && estimate > elapsed ? '~' + duration(estimate-elapsed) : 'Estimating';
   return <section className="card monitor" id="monitor" tabIndex={-1} aria-label="Transfer monitor"><div className="card-heading"><h2>Transfer monitor</h2><span className={'pill '+(simulated ? 'simulated' : phase === 'completed' || phase === 'received' ? 'confirmed' : '')}>{simulated ? 'Simulation · ' : ''}{phaseLabel[phase]}</span></div>
-    <div className="relay-console-preview" aria-hidden="true"/>
+    <div className="relay-console-preview" ref={previewRef}>
+      <div className="relay-preview-fallback">
+        <span>{running && lastPacket ? `${lastPacket.direction === 'submit' ? 'Sending' : lastPacket.direction === 'decode' ? 'Received' : 'Awaiting reply'} · ${Kind[lastPacket.kind]}` : phaseLabel[phase]}</span>
+      </div>
+    </div>
     <p className="bytes" key={progress?.acked}>{progress ? progress.acked.toLocaleString() : '—'} <small>{progress ? '/ '+progress.total.toLocaleString()+' B' : 'bytes'}</small></p>
     <div className="track" role={progress?.total ? 'progressbar' : undefined} aria-label={progress?.total ? 'Unique payload bytes' : undefined} aria-valuemin={progress?.total ? 0 : undefined} aria-valuenow={progress?.acked} aria-valuemax={progress?.total}><i style={{width: `${progress?.total ? 100*progress.acked/progress.total : 0}%`}}/></div>
     <div aria-hidden="true" className={'final-track '+(phase === 'completed' ? simulated ? 'simulated' : 'confirmed' : '')}/>

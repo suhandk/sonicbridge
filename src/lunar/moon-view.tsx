@@ -8,7 +8,7 @@ function initialEffects():Effects | null {
   try {const saved=localStorage.getItem(storageKey);if(saved==='Full'||saved==='Reduced'||saved==='Off')return saved;}catch{/* private storage */}
   return null;
 }
-export function MoonRelay({listening,transferring,failed,packets}:{listening:boolean;transferring:boolean;failed:boolean;packets:PacketEvent[]}) {
+export function MoonRelay({listening,transferring,failed,packets,preview}:{listening:boolean;transferring:boolean;failed:boolean;packets:PacketEvent[];preview:HTMLDivElement | null}) {
   const [preference,setPreference]=useState(initialEffects);
   const [osReduced,setOsReduced]=useState(()=>matchMedia('(prefers-reduced-motion:reduce)').matches);
   const [unavailable,setUnavailable]=useState(false),[progress,setProgress]=useState(0),[skipped,setSkipped]=useState(false);
@@ -16,6 +16,11 @@ export function MoonRelay({listening,transferring,failed,packets}:{listening:boo
   const reduced=effects==='Reduced', enabled=effects!=='Off'&&!unavailable;
   const host=useRef<HTMLDivElement>(null), scene=useRef<RelayScene|null>(null);
   const state=useRef<VisualState>({listening,transferring,failed,reduced});
+  const previewTarget = useRef(preview);
+  useEffect(() => {
+    previewTarget.current = preview;
+    scene.current?.setPreview(preview);
+  }, [preview]);
   const last=useRef<PacketEvent|undefined>(undefined);
   useEffect(()=>{
     const m=matchMedia('(prefers-reduced-motion:reduce)');const change=()=>setOsReduced(m.matches);
@@ -37,6 +42,7 @@ export function MoonRelay({listening,transferring,failed,packets}:{listening:boo
         if(cancelled||!host.current)return;
         setProgress(30);
         scene.current=createRelay(host.current,state.current,setProgress,()=>{if(!cancelled)setUnavailable(true);});
+        scene.current.setPreview(previewTarget.current);
       }catch{if(!cancelled)setUnavailable(true);}
     };
     // Let the actual interface paint before paying the WebGL startup cost.
