@@ -107,5 +107,14 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const binaryDownload = page.waitForEvent('download');
   await receipt.getByRole('button', { name: 'Download as .bin' }).click();
   expect(await readFile((await (await binaryDownload).path())!)).toEqual(binary);
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
+  const message = page.getByLabel('What would you like to send?');
+  await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: null }));
+  await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await expect(receipt).toContainText('STRUCTURED DATA');
+  await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: { title: 'Unsigned incident' } }));
+  await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await expect(receipt).toContainText('Unsigned incident');
+  await expect(receipt).toContainText('Sender details from received text');
   expect(errors).toEqual([]); expect(badResponses).toEqual([]);
 });

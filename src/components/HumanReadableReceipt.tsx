@@ -1,4 +1,3 @@
-import React, { useState } from 'react';
 import type { IncidentReport, IncidentCategory, IncidentPriority } from '../types/rescue';
 import type { ConfigPackage } from '../types/airgap';
 import type { ShipmentRecord, HandoverEvent } from '../types/trace';
@@ -8,12 +7,44 @@ export type TabType = 'rescue' | 'airgap' | 'trace' | 'transceiver' | 'trust' | 
 
 interface HumanReadableReceiptProps {
   text: string;
-  source: string;
   onNavigateTab?: (tab: TabType) => void;
 }
 
-export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReadableReceiptProps) {
-  const [showRaw, setShowRaw] = useState(false);
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function fields(value: Record<string, unknown>, kind: 'string' | 'number', names: readonly string[]) {
+  return names.every(name => value[name] === undefined || typeof value[name] === kind);
+}
+
+function hasRenderablePayload(envelope: Record<string, unknown>) {
+  const { messageType, payload } = envelope;
+  if (!record(payload) || !fields(envelope, 'string', ['originDeviceId']) || !fields(envelope, 'number', ['hopCount'])) return false;
+
+  switch (messageType) {
+    case 'rescue_incident': {
+      const { gps, resources } = payload;
+      return fields(payload, 'string', ['priority', 'category', 'incidentId', 'title', 'locationDescription', 'description']) &&
+        fields(payload, 'number', ['affectedCount']) &&
+        (gps === undefined || (record(gps) && fields(gps, 'number', ['latitude', 'longitude', 'accuracy']))) &&
+        (resources === undefined || (Array.isArray(resources) && resources.every(item => record(item) &&
+          fields(item, 'string', ['urgency', 'type', 'unit']) && fields(item, 'number', ['quantity']))));
+    }
+    case 'airgap_package':
+      return fields(payload, 'string', ['version', 'packageId', 'packageName', 'targetAssetId', 'authorOperator',
+        'authorDeviceId', 'description', 'contentDigestSha256']);
+    case 'trace_handover':
+    case 'trace_acceptance':
+      return fields(payload, 'number', ['quantity']) && fields(payload, 'string', ['shipmentId', 'handoverId',
+        'itemDescription', 'unit', 'senderOrganization', 'originLocation', 'intendedReceiver', 'destinationLocation',
+        'notes', 'currentHolderDeviceId', 'toDeviceId']);
+    default:
+      return false;
+  }
+}
+
+export function HumanReadableReceipt({ text, onNavigateTab }: HumanReadableReceiptProps) {
 
   // Try parsing the text as a SonicEnvelope or structured JSON
   let parsedEnvelope: SonicEnvelope | null = null;
@@ -22,9 +53,9 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
   if (typeof text === 'string' && text.trim().startsWith('{') && text.trim().endsWith('}')) {
     try {
       const parsed = JSON.parse(text);
-      if (parsed && typeof parsed === 'object') {
-        if ('messageType' in parsed && 'payload' in parsed) {
-          parsedEnvelope = parsed as SonicEnvelope;
+      if (record(parsed)) {
+        if (hasRenderablePayload(parsed)) {
+          parsedEnvelope = parsed as unknown as SonicEnvelope;
         } else {
           genericJson = parsed as Record<string, unknown>;
         }
@@ -124,13 +155,13 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
 
         <div className="receipt-provenance-bar">
           <div className="prov-status">
-            <span className="prov-dot-green">●</span>
-            <span>Acoustic ECDSA P-256: <strong>Cryptographically Verified ✓</strong></span>
+            <span aria-hidden="true">●</span>
+            <span><strong>Sender details from received text</strong></span>
           </div>
           <div className="prov-details mono">
             <span>Sender: <code>{parsedEnvelope.originDeviceId}</code></span>
             <span>·</span>
-            <span>{parsedEnvelope.hopCount === 0 ? 'Direct Acoustic Link' : `${parsedEnvelope.hopCount} mesh hops`}</span>
+            <span>{typeof parsedEnvelope.hopCount === 'number' ? `${parsedEnvelope.hopCount} reported hops` : 'Hop count unavailable'}</span>
           </div>
         </div>
 
@@ -162,7 +193,7 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
       <div className="human-receipt-card airgap-receipt">
         <div className="receipt-banner">
           <div className="receipt-meta-row">
-            <span className="badge-airgap-status quarantined">🔒 QUARANTINED</span>
+            <span className="badge-airgap-status quarantined">Configuration package</span>
             <span className="badge-category">{pkg.version || 'v1.0'}</span>
             <span className="badge-id mono">{pkg.packageId}</span>
           </div>
@@ -180,7 +211,7 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
           <div className="receipt-info-row">
             <span className="info-icon">👤</span>
             <div className="info-text">
-              <strong>Authorized Author:</strong> {pkg.authorOperator || 'Operator'} ({pkg.authorDeviceId || parsedEnvelope.originDeviceId})
+              <strong>Reported author:</strong> {pkg.authorOperator || 'Operator'} ({pkg.authorDeviceId || parsedEnvelope.originDeviceId})
             </div>
           </div>
 
@@ -193,8 +224,8 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
 
         <div className="receipt-provenance-bar">
           <div className="prov-status">
-            <span className="prov-dot-green">●</span>
-            <span>Signature: <strong>Verified Industrial Origin ✓</strong></span>
+            <span aria-hidden="true">●</span>
+            <span><strong>Package details from received text</strong></span>
           </div>
           <div className="prov-details mono">
             <span>Asset SHA-256 Digest: {pkg.contentDigestSha256?.slice(0, 16)}...</span>
@@ -208,7 +239,7 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
               className="btn-open-scenario"
               onClick={() => onNavigateTab('airgap')}
             >
-              🔒 Inspect & Approve in Air-Gap View →
+              Open Air-Gap View →
             </button>
           </div>
         )}
@@ -223,7 +254,7 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
 
   // 3. SUPPLY CHAIN CUSTODY HANDOVER
   if (parsedEnvelope && (parsedEnvelope.messageType === 'trace_handover' || parsedEnvelope.messageType === 'trace_acceptance')) {
-    const payload = parsedEnvelope.payload as any;
+    const payload = parsedEnvelope.payload as Partial<ShipmentRecord & HandoverEvent>;
     const isHandover = parsedEnvelope.messageType === 'trace_acceptance';
 
     return (
@@ -273,8 +304,8 @@ export function HumanReadableReceipt({ text, source, onNavigateTab }: HumanReada
 
         <div className="receipt-provenance-bar">
           <div className="prov-status">
-            <span className="prov-dot-green">●</span>
-            <span>Provenance: <strong>ECDSA P-256 Validated Chain ✓</strong></span>
+            <span aria-hidden="true">●</span>
+            <span><strong>Custody details from received text</strong></span>
           </div>
           <div className="prov-details mono">
             <span>Holder Device: <code>{payload.currentHolderDeviceId || payload.toDeviceId || parsedEnvelope.originDeviceId}</code></span>

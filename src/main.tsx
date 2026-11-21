@@ -771,7 +771,6 @@ function App() {
                       ) : (
                         <HumanReadableReceipt
                           text={item.text}
-                          source={item.source}
                           onNavigateTab={tab => setActiveTab(tab)}
                         />
                       )}
