@@ -32,21 +32,27 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const halo=haloTexture();
   const glow=new T.Sprite(new T.SpriteMaterial({map:halo,transparent:true,opacity:.22,blending:T.AdditiveBlending,depthWrite:false}));
   glow.scale.set(4,2.6,1);world.add(glow);
-  const earthMat = new T.MeshStandardMaterial({roughness: .94});
+  const earthMat = new T.MeshStandardMaterial({roughness: .65, color: 0xe6efff});
   const earth = new T.Mesh(sphere, earthMat);
   earth.scale.setScalar(mobile ? .135 : .21);
-  earth.rotation.set(.15, -1.36, -.21);
+  earth.rotation.set(.15, -1.36, -.21, 'ZXY');
   world.add(earth);
   const atmosphere = new T.Mesh(sphere, new T.ShaderMaterial({
     vertexShader: 'varying vec3 n; void main(){n=normalMatrix*normal;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: `varying vec3 n; void main() {
       float rim = pow(1.0 - abs(normalize(n).z), 4.0);
-      gl_FragColor = vec4(.27,.59,1.,rim*.68);
+      gl_FragColor = vec4(.27,.59,1.,rim*.42);
     }`,
     transparent: true, blending: T.AdditiveBlending, depthWrite: false,
   }));
-  atmosphere.scale.setScalar(1.035);
+  atmosphere.scale.setScalar(1.025);
   earth.add(atmosphere);
+  const cloudMaterial = new T.MeshStandardMaterial({
+    color: 0xf4f8ff, transparent: true, opacity: .64, depthWrite: false, roughness: 1,
+  });
+  const clouds = new T.Mesh(sphere, cloudMaterial);
+  clouds.scale.setScalar(1.016);
+  earth.add(clouds);
   const count=mobile?1800:3800;
   const starPos=new Float32Array(count*3),starColor=new Float32Array(count*3);
   let seed=41; const rand=()=>((seed=(Math.imul(1664525,seed)+1013904223)>>>0)/4294967296);
@@ -57,45 +63,111 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   }
   const starGeo=new T.BufferGeometry();starGeo.setAttribute('position',new T.BufferAttribute(starPos,3));starGeo.setAttribute('color',new T.BufferAttribute(starColor,3));
   const stars=new T.Points(starGeo,new T.PointsMaterial({vertexColors:true,size:1.4,sizeAttenuation:false}));scene.add(stars);
-  const orange=0xff5a1f, normal=new T.Vector3(-.24,.94,.24).normalize();
-  const mast=new T.Group();mast.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),normal);world.add(mast);
-  const metal = new T.MeshStandardMaterial({color: 0xc3ccd4, metalness: .28, roughness: .53});
-  const footing = new T.Mesh(new T.CylinderGeometry(.16,.19,.085,12), metal);
-  footing.position.y = .043;
-  const pedestal = new T.Mesh(new T.CylinderGeometry(.055,.09,.32,12), metal);
-  pedestal.position.y = .2;
-  mast.add(footing, pedestal);
-
-  const dish = new T.Group();
-  mast.add(dish);
-  const reflector = new T.Mesh(new T.LatheGeometry(Array.from({length: 11}, (_, i) => {
-    const radius = i * .033;
-    return new T.Vector2(radius, radius * radius * .94);
-  }), 36), new T.MeshStandardMaterial({color: 0xe4e9ed, roughness: .48, side: T.DoubleSide}));
-  dish.add(reflector);
-  const lip = new T.Mesh(new T.TorusGeometry(.33,.013,8,36), metal);
-  lip.rotation.x = Math.PI / 2;
-  lip.position.y = .103;
-  dish.add(lip);
+  const orange = 0xff5a1f;
+  const satellite = new T.Group();
+  world.add(satellite);
+  const metal = new T.MeshStandardMaterial({color: 0xe1e9f5, roughness: .5, metalness: .22});
+  const foil = new T.MeshStandardMaterial({color: 0xd39a49, roughness: .57, metalness: .31});
+  const solar = new T.MeshStandardMaterial({color: 0x183b74, emissive: 0x122a53, emissiveIntensity: .55});
+  const graphite = new T.MeshStandardMaterial({color: 0x262c35, roughness: .84});
+  const chassis = new T.Mesh(new T.BoxGeometry(.47, .51, .39), foil);
+  const rimGeometry = new T.BoxGeometry(.495, .035, .418);
+  for (const height of [-.247, .247]) {
+    const rim = new T.Mesh(rimGeometry, metal);
+    rim.position.y = height;
+    satellite.add(rim);
+  }
+  const foilSeam = new T.BoxGeometry(.013, .49, .015);
+  for (const x of [-.17, -.08, .08, .17]) {
+    const seam = new T.Mesh(foilSeam, metal);
+    seam.position.set(x, 0, .197);
+    satellite.add(seam);
+  }
+  const instrumentBay = new T.Mesh(new T.BoxGeometry(.26, .22, .1), graphite);
+  instrumentBay.position.set(0, -.04, .205);
+  const sensor = new T.Mesh(new T.CylinderGeometry(.075, .09, .05, 12), metal);
+  sensor.rotation.x = Math.PI / 2;
+  sensor.position.set(.04, -.04, .28);
+  const sensorGlass = new T.Mesh(new T.SphereGeometry(.049, 12, 8),
+    new T.MeshStandardMaterial({color: 0x123750, roughness: .2, metalness: .5}));
+  sensorGlass.scale.z = .32;
+  sensorGlass.position.copy(sensor.position);
+  sensorGlass.position.z += .027;
+  const wingSpar = new T.Mesh(new T.BoxGeometry(1.7, .048, .052), metal);
+  satellite.add(chassis, instrumentBay, sensor, sensorGlass, wingSpar);
+  const cell = new T.BoxGeometry(.212, .415, .037);
+  const panelFrame = new T.BoxGeometry(.23, .44, .026);
+  const gridMaterial = new T.LineBasicMaterial({color: 0x8aadd8, transparent: true, opacity: .48});
+  const gridPoints: T.Vector3[] = [];
+  for (const x of [-.07, 0, .07]) {
+    gridPoints.push(new T.Vector3(x, -.201, .020), new T.Vector3(x, .201, .020));
+  }
+  for (const y of [-.15, -.10, -.05, 0, .05, .10, .15]) {
+    gridPoints.push(new T.Vector3(-.099, y, .020), new T.Vector3(.099, y, .020));
+  }
+  const grid = new T.BufferGeometry().setFromPoints(gridPoints);
+  for (const side of [-1, 1]) {
+    for (let section = 0; section < 3; section++) {
+      const panel = new T.Mesh(cell, solar);
+      panel.position.x = side * (.42 + section * .225);
+      const backing = new T.Mesh(panelFrame, metal);
+      backing.position.z = -.014;
+      panel.add(backing, new T.LineSegments(grid, gridMaterial));
+      satellite.add(panel);
+    }
+  }
+  const terminal = new T.Group();
+  const terminalMount = new T.Mesh(new T.CylinderGeometry(.052, .07, .06, 12), metal);
+  terminalMount.position.y = -.028;
+  terminal.add(terminalMount);
+  const reflector = new T.Mesh(new T.LatheGeometry([
+    new T.Vector2(0, 0), new T.Vector2(.095, .018), new T.Vector2(.18, .075),
+  ], 24), new T.MeshStandardMaterial({color: 0xeaf5ff, roughness: .45, side: T.DoubleSide}));
   const tipMat = new T.MeshBasicMaterial({color: orange});
-  const tip = new T.Mesh(sphere,tipMat);
-  tip.scale.setScalar(.045);
-  tip.position.y = .265;
-  dish.add(tip);
-  const up = new T.Vector3(0,1,0);
-  const dishTarget = new T.Vector3();
-  const dishCenter = new T.Vector3();
-  const earthRadius = mobile ? .135 : .21;
+  const tip = new T.Mesh(sphere, tipMat);
+  tip.scale.setScalar(.048);
+  tip.position.y = .15;
+  const braces: T.Vector3[] = [];
+  for (let index = 0; index < 3; index++) {
+    const angle = index * 2 * Math.PI / 3;
+    braces.push(new T.Vector3(Math.cos(angle) * .166, .067, Math.sin(angle) * .166),
+      new T.Vector3(0, .15, 0));
+  }
+  const supports = new T.LineSegments(new T.BufferGeometry().setFromPoints(braces),
+    new T.LineBasicMaterial({color: 0xd3deea}));
+  terminal.add(reflector, supports, tip);
+  world.add(terminal);
+
+  const orbitTilt = new T.Euler(.42, -.24, -.19);
+  const orbitDirection = new T.Vector3();
+  const terminalDirection = new T.Vector3();
+  const terminalOffset = new T.Vector3();
+  const moonRest = new T.Vector3();
+  const earthRest = new T.Vector3();
+  const solarOffset = new T.Vector3();
+  const up = new T.Vector3(0, 1, 0);
+  const orbit = new T.LineLoop(new T.BufferGeometry().setFromPoints(
+    Array.from({length: 96}, (_, index) => {
+      const angle = index * 2 * Math.PI / 96;
+      return new T.Vector3(Math.cos(angle), Math.sin(angle), 0).applyEuler(orbitTilt);
+    }),
+  ), new T.LineBasicMaterial({color: 0x71839a, transparent: true, opacity: .23}));
+  world.add(orbit);
+  const earthRadius = mobile ? .155 : .25;
   const base=new T.Vector3(),end=new T.Vector3();
   const beamGeo=new T.BufferGeometry().setFromPoints([base,end]);
   const beamMat=new T.LineBasicMaterial({color:orange,transparent:true,opacity:.14});
-  world.add(new T.Line(beamGeo,beamMat));
+  const beam = new T.Line(beamGeo, beamMat);
+  beam.frustumCulled = false;
+  world.add(beam);
+  const beamPositions = beamGeo.getAttribute('position');
+  const nearest = new T.Vector3();
   // A fixed pool bounds both geometry allocations and visible packet effects.
   const pulses=Array.from({length:8},()=>{
     const dot=new T.Mesh(sphere,new T.MeshBasicMaterial());dot.scale.setScalar(.034);dot.visible=false;world.add(dot);
     const rings = [0, 1].map(() => {
       const ring = new T.Mesh(new T.RingGeometry(.86,1,40), new T.MeshBasicMaterial({
-        transparent: true, depthWrite: false, depthTest: false,
+        transparent: true, depthWrite: false, depthTest: true,
         side: T.DoubleSide, blending: T.AdditiveBlending,
       }));
       ring.visible = false;
@@ -108,21 +180,8 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const mouse={x:0,y:0};
   const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');
   const software=ext && /swiftshader|llvmpipe|software/i.test(String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)));
-  // A software renderer can move its cached frame on the compositor without
-  // taking CPU time to shade the crater textures again on every animation frame.
-  const drift = software ? renderer.domElement.animate([
-    { transform: 'scale(1.02) translate(0%, 0%)' },
-    { transform: 'scale(1.10) translate(-1.8%, -1.1%)' },
-  ], { duration: 6500, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' }) : undefined;
-  function syncDrift() {
-    if (!drift) return;
-    if (state.reduced) drift.cancel();
-    else if (document.hidden || !visible || state.transferring) drift.pause();
-    else drift.play();
-  }
-  syncDrift();
   let settle = 0;
-  const staticFrame=()=>state.reduced || software;
+  const staticFrame = () => state.reduced;
   const hero = document.querySelector<HTMLElement>('.relay-hero');
   const consolePreview = document.querySelector<HTMLElement>('.relay-console-preview');
   let viewport: HTMLElement = host;
@@ -136,18 +195,12 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     const diskBottom = Math.min(h, heroHeight) - 66;
     const moonY = compact ? -.52 : mobile ? 3 - (diskBottom / h) * 6 + radius : -.12;
     moon.scale.setScalar(radius);
-    moon.position.set(span * (compact ? -.38 : mobile ? .23 : .49), moonY, 0);
-    earth.position.set(span * (compact ? .4 : .76), moonY + radius * (compact ? 1.8 : 1.34), -2);
+    moonRest.set(span * (compact ? -.38 : mobile ? .14 : .49), moonY, 0);
+    earthRest.set(span * (compact ? .4 : .76), moonY + radius * (compact ? 1.8 : 1.43), .4);
     earth.scale.setScalar(compact ? .5 : earthRadius);
-    mast.position.copy(moon.position).addScaledVector(normal,radius);
-    mast.scale.setScalar(compact ? .78 : Math.min(.53, radius * .40));
-    dishCenter.copy(mast.position).addScaledVector(normal, .37 * mast.scale.y);
-    dish.position.set(0,.37,0);
-    dishTarget.copy(earth.position).sub(dishCenter).normalize();
-    dish.quaternion.setFromUnitVectors(up, dishTarget).premultiply(mast.quaternion.clone().invert());
-    base.copy(dishCenter).addScaledVector(dishTarget, .265 * mast.scale.y);
-    end.copy(earth.position).addScaledVector(dishTarget, -earth.scale.x * .84);
-    const p=beamGeo.getAttribute('position');p.setXYZ(0,base.x,base.y,base.z);p.setXYZ(1,end.x,end.y,end.z);p.needsUpdate=true;beamGeo.computeBoundingSphere();
+    orbit.scale.setScalar(radius * (compact ? 1.42 : 1.24));
+    satellite.scale.setScalar(compact ? .63 : mobile ? .28 : .43);
+    terminal.scale.copy(satellite.scale);
     schedule(true);
   }
   function draw(){
@@ -158,36 +211,67 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     const scroll=Math.min(1,window.scrollY/Math.max(innerHeight,1));
     camera.zoom=viewport === consolePreview ? 1 : 1+scroll*.11;camera.updateProjectionMatrix();
     world.position.set(still?0:mouse.x*.24+.075*Math.sin(rotation*.45),still?0:mouse.y*.14+.035*Math.sin(rotation*.32),0);
+    // Screen-space projection of the shared solar orbit, with compressed scale and timing.
+    const solarPhase = rotation * .19;
+    solarOffset.set(Math.sin(solarPhase) * (mobile ? .125 : .22), (Math.cos(solarPhase) - 1) * .09, 0);
+    earth.position.copy(earthRest).add(solarOffset);
+    // Show a small projected arc of the Moon's wider orbit around Earth.
+    const lunarPhase = rotation * .29;
+    moon.position.copy(moonRest).add(solarOffset);
+    moon.position.x += Math.sin(lunarPhase) * .08;
+    moon.position.y += (1 - Math.cos(lunarPhase)) * .065;
+    orbit.position.copy(moon.position);
     glow.position.set(moon.position.x+moon.scale.x*.75,moon.position.y+moon.scale.x*(state.transferring?.56:.45),-1);
     tipMat.color.setHex(now<failUntil?0xff4d5e:now<warnUntil?0xffd23d:orange);
     tipMat.color.multiplyScalar(state.listening||state.transferring?1:.52);
-    earth.rotation.y = -1.36 + rotation * .062;
-    beamMat.opacity = now < warnUntil ? .09 : state.transferring ? .65 : state.listening ? .4 : .22;
+    earth.rotation.y = -1.36 + rotation * .24;
+    clouds.rotation.y = .1 + rotation * .018;
+    const angle = 1.06 - rotation * .37;
+    orbitDirection.set(Math.cos(angle), Math.sin(angle), 0).applyEuler(orbitTilt);
+    satellite.position.copy(moon.position).addScaledVector(orbitDirection, orbit.scale.x);
+    satellite.rotation.set(.21 + Math.sin(angle) * .12, .28 + Math.cos(angle) * .22, angle + Math.PI / 2);
+    terminalOffset.set(0, .272, 0).applyEuler(satellite.rotation).multiplyScalar(satellite.scale.y);
+    terminal.position.copy(satellite.position).add(terminalOffset);
+    terminalDirection.copy(earth.position).sub(terminal.position).normalize();
+    terminal.quaternion.setFromUnitVectors(up, terminalDirection);
+    base.copy(terminal.position).addScaledVector(terminalDirection, .15 * terminal.scale.y);
+    end.copy(earth.position).addScaledVector(terminalDirection, -earth.scale.x * 1.028);
+    const linkLength = base.distanceTo(end);
+    const distanceAlongLink = nearest.subVectors(moon.position, base).dot(terminalDirection);
+    nearest.copy(base).addScaledVector(terminalDirection, T.MathUtils.clamp(distanceAlongLink, 0, linkLength));
+    const clearPath = nearest.distanceToSquared(moon.position) > moon.scale.x ** 2;
+    beam.visible = false;
+    beamPositions.setXYZ(0, base.x, base.y, base.z);
+    beamPositions.setXYZ(1, end.x, end.y, end.z);
+    beamPositions.needsUpdate = true;
+    beamMat.opacity = now < warnUntil ? .13 : .40;
     for(const p of pulses){
       const t = (now - p.at) / 1150;
       const show = t >= 0 && t < 1;
-      p.dot.visible = show;
-      if (show) p.dot.position.lerpVectors(p.incoming ? end : base, p.incoming ? base : end, state.reduced ? .5 : t);
+      p.dot.visible = show && clearPath;
+      beam.visible ||= p.dot.visible;
+      if (p.dot.visible) p.dot.position.lerpVectors(p.incoming ? end : base, p.incoming ? base : end, state.reduced ? .5 : t);
       p.rings.forEach((ring, index) => {
         const phase = state.reduced ? .35 : (t - index * .55) / .46;
-        ring.visible = show && phase >= 0 && phase < 1;
+        ring.visible = show && (clearPath || index === 0) && phase >= 0 && phase < 1;
         if (!ring.visible) return;
         ring.position.copy((index === 0) === p.incoming ? end : base);
+        ring.position.z += .018;
         ring.scale.setScalar(.04 + phase * (p.final ? .54 : .34));
         ring.material.opacity = 1 - phase;
       });
       if (show && p.final) tipMat.color.setHex(0xffffff);
     }
     renderer.render(scene,camera);
-    if (!still || (!state.reduced && pulses.some(p => now - p.at < 1150))) schedule(false);
+    if (!still) schedule(false);
   }
   function schedule(immediate:boolean){
     if(!alive||!loaded||!visible||document.hidden)return;
     if(timer && !immediate)return;
-    clearTimeout(timer);timer=window.setTimeout(draw,immediate?0:1000 / (software ? 15 : state.transferring ? 24 : 30));
+    clearTimeout(timer);timer=window.setTimeout(draw,immediate?0:1000 / (software ? 12 : state.transferring ? 24 : 30));
   }
   const move=(e:PointerEvent)=>{if(!mobile && !staticFrame()){mouse.x=e.clientX/innerWidth-.5;mouse.y=e.clientY/innerHeight-.5;}};
-  const visibility=()=>{clearTimeout(timer);timer=0;syncDrift();if(!document.hidden)schedule(true);};
+  const visibility=()=>{clearTimeout(timer);timer=0;if(!document.hidden)schedule(true);};
   const scroll=()=>{if(!staticFrame())schedule(false);};
   const lost=(e:Event)=>{e.preventDefault();fail();};
   const regions = new Set<Element>();
@@ -212,25 +296,25 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   window.addEventListener('pointermove',move,{passive:true});window.addEventListener('scroll',scroll,{passive:true});
   document.addEventListener('visibilitychange',visibility);renderer.domElement.addEventListener('webglcontextlost',lost);
   const loader=new T.TextureLoader();let finished=0;const textures:T.Texture[]=[halo];
-  for(const type of ['surface','relief','earth']){
-    const filename = type === 'earth' ? 'earth.webp' : type+'-'+(mobile?512:1024)+'.webp';
+  for(const type of ['surface','relief','earth','earth-clouds']){
+    const filename = type.startsWith('earth') ? type+'.webp' : type+'-'+(mobile?512:1024)+'.webp';
     const tex=loader.load('./lunar/'+filename,()=>{
       if(!alive)return;
       finished++;progress(finished===1?65:90);
-      if(finished===3){loaded=true;layout();progress(100);}
+      if(finished===4){loaded=true;layout();progress(100);}
     },undefined,()=>{if(alive)fail();});
     if(type==='surface'){tex.colorSpace=T.SRGBColorSpace;moonMat.map=tex;}else if(type==='relief') moonMat.bumpMap=tex;
-    else { tex.colorSpace=T.SRGBColorSpace; earthMat.map=tex; }
+    else if(type==='earth') { tex.colorSpace=T.SRGBColorSpace; earthMat.map=tex; }
+    else cloudMaterial.alphaMap=tex;
     textures.push(tex);
   }
   return {
     update(next,events){
       if(next.failed&&!state.failed) failUntil=performance.now()+650;
       state=next;
-      syncDrift();
       for(const e of events){
         if(e.direction==='timeout'||(e.attempt??1)>1)warnUntil=performance.now()+650;
-        if(e.direction==='timeout'||![Kind.DATA,Kind.CONTENT_DATA_ALT,Kind.ACK,Kind.FIN_ACK].includes(e.kind))continue;
+        if (e.direction === 'timeout') continue;
         const pulse=pulses[slot++%pulses.length];pulse.incoming=e.direction==='decode';pulse.final=e.kind===Kind.FIN_ACK;
         const signalColor = e.kind === Kind.ACK || e.kind === Kind.FIN_ACK ? 0xd2efff : 0xff883d;
         pulse.dot.material.color.setHex(signalColor);
@@ -241,7 +325,7 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
       if(staticFrame() && (events.length || next.failed)){clearTimeout(settle);settle=window.setTimeout(()=>schedule(true),1180);}
     },
     dispose(){
-      alive=false;drift?.cancel();clearTimeout(timer);clearTimeout(settle);observer.disconnect();resize.disconnect();
+      alive=false;clearTimeout(timer);clearTimeout(settle);observer.disconnect();resize.disconnect();
       window.removeEventListener('pointermove',move);window.removeEventListener('scroll',scroll);document.removeEventListener('visibilitychange',visibility);
       renderer.domElement.removeEventListener('webglcontextlost',lost);
       const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();
