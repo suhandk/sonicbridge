@@ -12,7 +12,7 @@ function draw(canvas: HTMLCanvasElement, frame: SignalFrame, spectrum: boolean) 
   const { width, height } = canvas, pcm = frame.pcm;
   ctx.clearRect(0, 0, width, height);
   if (!spectrum) {
-    ctx.strokeStyle = '#8df1f5'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.strokeStyle = '#ff5a1f'; ctx.lineWidth = 2; ctx.beginPath();
     for (let x = 0; x < width; x++) {
       const start = Math.floor(x*pcm.length/width), end = Math.max(start+1, Math.floor((x+1)*pcm.length/width));
       let min = pcm[start], max = min;
@@ -27,7 +27,7 @@ function draw(canvas: HTMLCanvasElement, frame: SignalFrame, spectrum: boolean) 
     for (let i = 0; i < N; i++) { real += pcm[x*N+i]*cos[k*N+i]; imag += pcm[x*N+i]*sin[k*N+i]; }
     const db = 20*Math.log10(Math.max(1e-8, 4*Math.hypot(real,imag)/N));
     const strength = Math.max(0, Math.min(1, (db+80)/80));
-    ctx.fillStyle = `rgb(141 241 245 / ${strength})`;
+    ctx.fillStyle = `rgb(255 90 31 / ${strength})`;
     ctx.fillRect(x*width/columns, height-(k+1)*height/(N/2), Math.ceil(width/columns), Math.ceil(height/(N/2)));
   }
 }

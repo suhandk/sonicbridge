@@ -8,7 +8,14 @@ await writeFile(new URL('../public/vendor/ggwave.js', import.meta.url), runtime)
 await writeFile(new URL('../public/vendor/ggwave-module.mjs', import.meta.url), runtime + '\nexport default ggwave_factory;\n');
 const notices = [];
 for (const path of ['THIRD_PARTY_NOTICES.md', 'public/vendor/LICENSE.ggwave', 'public/vendor/LICENSE.reed-solomon',
-  ...['@fontsource-variable/geist', '@fontsource/ibm-plex-mono', 'react', 'react-dom', 'scheduler', '@noble/hashes'].map(name => `node_modules/${name}/LICENSE`)]) {
+  ...['three', '@fontsource-variable/archivo', '@fontsource/jetbrains-mono', 'react', 'react-dom', 'scheduler', '@noble/hashes'].map(name => `node_modules/${name}/LICENSE`)]) {
   notices.push(path, await readFile(new URL('../' + path, import.meta.url), 'utf8'));
 }
 await writeFile(new URL('../public/vendor/THIRD_PARTY_NOTICES.txt', import.meta.url), notices.join('\n\n'));
+
+const documents = ['PROTOCOL','AUDIO','PROJECT','DEVICE_TEST_MATRIX','STATUS','BENCHMARKS','PHYSICAL_TEST_SHEET','CONTRIBUTIONS','THIRD_PARTY_NOTICES'];
+await mkdir(new URL('../public/docs/', import.meta.url), { recursive: true });
+for (const name of documents) {
+  const source = await readFile(new URL('../'+name+'.md', import.meta.url));
+  await writeFile(new URL('../public/docs/'+name+'.txt', import.meta.url), source);
+}
