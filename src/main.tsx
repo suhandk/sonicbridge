@@ -34,6 +34,7 @@ import { defaultTraceState } from './scenarios/trace/state';
 import type { IncidentReport } from './types/rescue';
 import type { ConfigPackage } from './types/airgap';
 import type { ShipmentRecord, HandoverEvent } from './types/trace';
+import { HumanReadableReceipt } from './components/HumanReadableReceipt';
 
 
 import './style.css';
@@ -768,7 +769,11 @@ function App() {
                       {item.file && item.file.kind !== 'text' ? (
                         <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)} />
                       ) : (
-                        <p>{item.text}</p>
+                        <HumanReadableReceipt
+                          text={item.text}
+                          source={item.source}
+                          onNavigateTab={tab => setActiveTab(tab)}
+                        />
                       )}
                     </article>
                   )) : (
