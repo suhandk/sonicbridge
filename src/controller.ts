@@ -3,7 +3,6 @@ import type { Clock } from './clock';
 export type OperatingMode = 'Balanced' | 'Robust' | 'Adaptive';
 export type Policy = Exclude<OperatingMode, 'Adaptive'>;
 export const ROBUST_EXTRA_GUARD = 400;
-export const ROBUST_EXTRA_ATTEMPTS = 2;
 type Outcome = { ack: boolean; retry: boolean; rejected: boolean };
 type Result = { bytes: number; ms: number };
 export type ControllerSnapshot = ReturnType<LinkController['snapshot']>;

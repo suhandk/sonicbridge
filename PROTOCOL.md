@@ -74,7 +74,7 @@ Defaults are local policy, not remotely supplied timers. `Clock` injects `now()`
 | Guard before each transmission | 500 ms baseline, 900 ms for negotiated Robust DATA and its ACK |
 | Maximum single acoustic playback | 30 seconds, watchdog abort |
 | Response timeout | 12 seconds **after local waveform playback ends** |
-| Attempt budget including initial transmission | 4 for HELLO, FIN and Balanced DATA, 6 for Robust DATA, 2 for SET_POLICY |
+| Attempt budget including initial transmission | 8 for DATA in all modes, 4 for HELLO and FIN, 2 for SET_POLICY |
 | Backoff before retry `a+1` after failed attempt `a` | `1000 × min(8, 2^(a−1)) × (1 + random[0,1))` ms |
 | Receive inactivity expiry | 120 seconds |
 | Completed/cancelled/expired identity retention | 600 seconds |

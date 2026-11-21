@@ -4,8 +4,8 @@ The operating mode belongs to the sender of a content transfer. The peer automat
 
 | Sender selection | Behavior on the wire | Overhead with successful first attempts |
 | --- | --- | --- |
-| Fixed Balanced | 500 ms before DATA and its ACK. Four total DATA attempts at most. | Existing framing and guards. No extra negotiation. |
-| Fixed Robust | Agree to Robust before the first DATA. 900 ms before each DATA and its ACK. Six total DATA attempts at most. | Two 21-byte acoustic control packets and their 500 ms guards per switch. Adds 800 ms per acknowledged chunk. |
+| Fixed Balanced | 500 ms before DATA and its ACK. Eight total DATA attempts at most. | Existing framing and guards. No extra negotiation. |
+| Fixed Robust | Agree to Robust before the first DATA. 900 ms before each DATA and its ACK. Eight total DATA attempts at most. | Two 21-byte acoustic control packets and their 500 ms guards per switch. Adds 800 ms per acknowledged chunk. |
 | Adaptive | Begin Balanced on a new controller. Request Robust on the loss conditions below. Request Balanced after sustained recovery. Each new transfer starts with baseline HELLO/CAPS and confirms any desired Robust pacing again. | Cost depends on the actual switches, DATA attempts and time in Robust. |
 
 On all three modes, DATA carries the same negotiated number of bytes. Every retry waits for the preceding ACK timeout. Each extra attempt repeats one packet and solicits its ACK. No mode transmits unconditional duplicate copies. Timeout starts after the waveform ends and is 12 seconds. Retry backoff is uniform from 1 to 2 times the exponential base (1, 2, 4, then 8 seconds capped). Control packets use the original 500 ms guard and four-attempt exchange budget, except for SET_POLICY, which has a two-attempt budget. CANCEL is best effort. The pre-send estimate includes a single required Robust switch and extra guards when starting Robust. Further switches, retries and backoffs depend on the exchange.
@@ -40,7 +40,7 @@ The package also exports ten custom enum slots. The pinned binding exposes no cu
 
 ## Reproducible comparison
 
-Run `npx vitest run tests/adaptive-pcm.test.ts --reporter=verbose`. Each cell is one fresh deterministic trial with the same 1600-byte file, name, IDs and seeded retry jitter. Both directions use actual ggwave encode/decode. Tests mute samples in specified time intervals before passing PCM into the peer modem. Elapsed time is virtual transfer time through FIN_ACK or terminal failure, including the final best-effort CANCEL. The four conditions are fixed independently of mode and packet type.
+Run `npx vitest run tests/adaptive-pcm.test.ts --reporter=verbose`. The measurements below were recorded before the production DATA budget was raised to eight attempts. Each cell is one fresh deterministic trial with the same 1600-byte file, name, IDs and seeded retry jitter. Both directions use actual ggwave encode/decode. Tests mute samples in specified time intervals before passing PCM into the peer modem. Elapsed time is virtual transfer time through FIN_ACK or terminal failure, including the final best-effort CANCEL. The four conditions are fixed independently of mode and packet type.
 
 | Channel and imposed loss | Balanced | Robust | Adaptive |
 | --- | --- | --- | --- |

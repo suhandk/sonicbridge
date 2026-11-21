@@ -1,4 +1,4 @@
-import { LinkController, ROBUST_EXTRA_ATTEMPTS, ROBUST_EXTRA_GUARD, type ControllerSnapshot, type Policy } from './controller';
+import { LinkController, ROBUST_EXTRA_GUARD, type ControllerSnapshot, type Policy } from './controller';
 import { FIXED_MANIFEST, readManifestHeader, verifyContent, type VerifiedContent } from './content';
 import { aborted, systemClock, type Clock } from './clock';
 import { capsBytes, contentMask, crc32, decodePacket, encodePacket, equalBytes, finishBytes, Kind, MAX_CHUNKS, MAX_TRANSFER_BYTES, offerBytes, payloadCapacity, readCaps, readOffer, type Offer, type Packet } from './protocol';
@@ -28,6 +28,7 @@ export interface Events {
 }
 export interface Timing { guardMs: number; ackTimeoutMs: number; attempts: number; backoffMs: number; rxIdleMs: number; retentionMs: number }
 export const DEFAULT_TIMING: Timing = { guardMs: 500, ackTimeoutMs: 12000, attempts: 4, backoffMs: 1000, rxIdleMs: 120000, retentionMs: 600000 };
+export const DEFAULT_DATA_ATTEMPTS = 8;
 const MAX_TOMBSTONES = 32;
 const empty = () => new Uint8Array();
 const same = (a: { session: number; transfer: number }, b: { session: number; transfer: number }) => a.session === b.session && a.transfer === b.transfer;
@@ -62,9 +63,9 @@ export class StopAndWait {
     this.capacity = payloadCapacity(channel.maxPacketBytes);
     this.timing = { ...DEFAULT_TIMING, ...timing };
     const t = this.timing;
-    this.dataAttemptCap = dataAttemptCap ?? t.attempts + ROBUST_EXTRA_ATTEMPTS;
-    if (!Number.isInteger(this.dataAttemptCap) || this.dataAttemptCap < 1 || this.dataAttemptCap > t.attempts + ROBUST_EXTRA_ATTEMPTS) throw new Error('Invalid DATA attempt cap.');
-    if (Object.values(t).some(n => !Number.isFinite(n) || n <= 0) || !Number.isInteger(t.attempts) || t.attempts > 8 || t.retentionMs < (t.attempts + ROBUST_EXTRA_ATTEMPTS) * (30000 + t.ackTimeoutMs + t.guardMs + ROBUST_EXTRA_GUARD + t.backoffMs * 16) || t.rxIdleMs <= t.ackTimeoutMs + t.backoffMs * 16 + (t.guardMs + ROBUST_EXTRA_GUARD) * 2 + 60000) throw new Error('Unsafe transport timing bounds.');
+    this.dataAttemptCap = dataAttemptCap ?? DEFAULT_DATA_ATTEMPTS;
+    if (!Number.isInteger(this.dataAttemptCap) || this.dataAttemptCap < 1 || this.dataAttemptCap > DEFAULT_DATA_ATTEMPTS) throw new Error('Invalid DATA attempt cap.');
+    if (Object.values(t).some(n => !Number.isFinite(n) || n <= 0) || !Number.isInteger(t.attempts) || t.attempts > 8 || t.retentionMs < Math.max(t.attempts, this.dataAttemptCap) * (30000 + t.ackTimeoutMs + t.guardMs + ROBUST_EXTRA_GUARD + t.backoffMs * 16) || t.rxIdleMs <= t.ackTimeoutMs + t.backoffMs * 16 + (t.guardMs + ROBUST_EXTRA_GUARD) * 2 + 60000) throw new Error('Unsafe transport timing bounds.');
     this.unsubscribe = channel.subscribe(bytes => this.receive(bytes));
   }
   private state(state: TransportState, detail: string) { this.events.state?.(state, detail, this.clock.now()); }
@@ -231,7 +232,7 @@ export class StopAndWait {
       }
       const robust = whiten && this.txPolicy === 'Robust';
       const limit = request.kind === Kind.SET_POLICY ? 2 : request.kind === Kind.DATA
-        ? Math.min(this.dataAttemptCap, this.timing.attempts + (robust ? ROBUST_EXTRA_ATTEMPTS : 0)) : this.timing.attempts;
+        ? this.dataAttemptCap : this.timing.attempts;
       const timer = new AbortController();
       const cancel = () => timer.abort(aborted(signal));
       signal.addEventListener('abort', cancel, { once: true });
@@ -255,8 +256,7 @@ export class StopAndWait {
         if (!(error instanceof AckTimeout)) throw error;
         this.packet('timeout', request, attempt);
         if (whiten) this.controller.outcome(false, attempt > 1, this.rejectedDuringWait);
-        const nextLimit = whiten && this.controller.target === 'Robust' ? Math.min(this.dataAttemptCap, this.timing.attempts + ROBUST_EXTRA_ATTEMPTS) : limit;
-        if (attempt >= nextLimit) throw new Error(`${Kind[response]} timed out after ${attempt} attempts. Delivery unconfirmed; receiver may have completed.`);
+        if (attempt >= limit) throw new Error(`${Kind[response]} timed out after ${attempt} attempts. Delivery unconfirmed; receiver may have completed.`);
       } finally { this.waiter = undefined; timer.abort(); signal.removeEventListener('abort', cancel); }
       const jitter = this.clock.random();
       if (jitter < 0 || jitter >= 1) throw new Error('Clock random() must be in [0, 1).');

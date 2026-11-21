@@ -27,7 +27,7 @@ Forward playback is 48000 Hz and capture is nominally 44100 Hz. The reverse path
 
 Generators operate on PCM during each emitted waveform, propagation delay and a bounded echo/350 ms decoder tail. Playback and receiver notification use separate virtual times. Detection is reported at window end. Idle periods outside capture windows, hardware AGC, environmental recordings and speaker frequency response are unmodeled. Virtual elapsed time excludes offline CPU cost.
 
-Every trial has the same 120 s hard deadline and six total sender retransmissions across all requests. DATA permits four total attempts per sequence for all modes. HELLO/FIN allow four and SET_POLICY two. Guards, deadlines per ACK, backoff, packet size and physical modem are otherwise production settings. Robust and Adaptive retain their negotiated longer guards; the experiment caps their usual six DATA attempts at four. Earlier native-budget examples in ADAPTIVE.md answer a different question.
+Every trial has the same 120 s hard deadline and six total sender retransmissions across all requests. DATA permits four total attempts per sequence for all modes. HELLO/FIN allow four and SET_POLICY two. Guards, deadlines per ACK, backoff, packet size and physical modem are otherwise production settings. Robust and Adaptive retain their negotiated longer guards. The experiment uses four DATA attempts across all modes. Earlier native-budget examples in ADAPTIVE.md answer a different question.
 
 ## Results · simulated PCM
 
