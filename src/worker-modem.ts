@@ -1,3 +1,5 @@
+import type { AudibleProfile } from './modem';
+
 export class WorkerModem {
   private worker = new Worker(new URL('./modem-worker.ts', import.meta.url), { type: 'module' });
   private nextId = 0;
@@ -28,7 +30,7 @@ export class WorkerModem {
     const runtimeUrl = new URL(`${import.meta.env.BASE_URL}vendor/ggwave-module.mjs`, location.href).href;
     await this.call({ kind: 'init', sampleRate, runtimeUrl });
   }
-  async encode(bytes: Uint8Array): Promise<Float32Array> { return (await this.call({ kind: 'encode', bytes })).pcm; }
+  async encode(bytes: Uint8Array, profile: AudibleProfile): Promise<Float32Array> { return (await this.call({ kind: 'encode', bytes, profile })).pcm; }
   decode(pcm: Float32Array): Promise<{ pcm: Float32Array; packets: Uint8Array[] }> { return this.call({ kind: 'decode', pcm }, [pcm.buffer as ArrayBuffer]); }
   async reset() { await this.call({ kind: 'reset' }); }
   dispose(error = new Error('Modem worker stopped.')) {

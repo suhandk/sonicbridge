@@ -36,7 +36,10 @@ interface Incoming {
   session: number; transfer: number; offer: Offer; chunk: number; next: number;
   policy: Policy; policySeq: number; content: boolean; buffer: Uint8Array; timer?: AbortController;
 }
-interface Tombstone { session: number; transfer: number; until: number; completed: boolean; offer: Offer; chunk: number }
+type Tombstone = { session: number; transfer: number; until: number } & (
+  { kind: 'chunked'; completed: boolean; offer: Offer; chunk: number }
+  | { kind: 'short-text'; wireBody: Uint8Array; receipt: Uint8Array }
+);
 interface Outgoing { session: number; transfer: number; abort: AbortController }
 interface Waiter { request: Packet; kind: Kind; accept: (p: Packet) => boolean; resolve: (p: Packet) => void }
 class AckTimeout extends Error {}
@@ -73,7 +76,7 @@ export class StopAndWait {
     rx.timer?.abort();
     this.incoming = undefined;
     // A slot was reserved before allocating incoming state; never evict a live tombstone.
-    this.tombstones.push({ session: rx.session, transfer: rx.transfer, offer: rx.offer, chunk: rx.chunk, completed, until: this.clock.now() + this.timing.retentionMs });
+    this.tombstones.push({ kind: 'chunked', session: rx.session, transfer: rx.transfer, offer: rx.offer, chunk: rx.chunk, completed, until: this.clock.now() + this.timing.retentionMs });
   }
   private rejectContent(rx: Incoming, p: Packet, error: unknown) {
     this.retire(rx, false);
@@ -118,6 +121,20 @@ export class StopAndWait {
       if (!abort.signal.aborted) this.state('failed', `Acoustic ${Kind[p.kind]} playback failed: ${String(error)}`);
     }).finally(() => { if (this.replyAbort === abort) { this.replyAbort = undefined; if (!this.disposed) this.events.replying?.(false); } });
   }
+  private receiveShortText(p: Packet) {
+    if (!this.events.content || this.incoming || this.replyAbort || this.tombstones.length >= MAX_TOMBSTONES) return;
+    const body = contentMask(p);
+    const item = verifyContent(body);
+    if (item.kind !== 'text' || !item.bytes.length) throw new Error('SHORT_TEXT requires nonempty UTF-8 text.');
+    const receipt = finishBytes(body.length, crc32(body));
+    this.tombstones.push({ kind: 'short-text', session: p.session, transfer: p.transfer, wireBody: Uint8Array.from(p.payload), receipt, until: this.clock.now() + this.timing.retentionMs });
+    this.events.receiveStarted?.(item.bytes.length);
+    this.state('receiving', 'Acoustic short text received.');
+    this.events.reassembled?.(item.bytes.length, item.bytes.length, this.clock.now());
+    this.reply({ ...p, kind: Kind.FIN_ACK, payload: receipt });
+    this.events.content(item);
+    this.state('received', 'Receiver verified short text SHA-256. Acoustic FIN_ACK queued.');
+  }
   private receive(bytes: Uint8Array) {
     if (this.disposed) return;
     let p: Packet;
@@ -139,10 +156,15 @@ export class StopAndWait {
       this.prune();
       const old = this.tombstones.find(t => same(p, t));
       if (old) {
+        if (old.kind === 'short-text') {
+          if (p.kind === Kind.SHORT_TEXT && equalBytes(p.payload, old.wireBody)) this.reply({ ...p, kind: Kind.FIN_ACK, payload: old.receipt });
+          return;
+        }
         if (old.completed && p.kind === Kind.FIN && p.seq === Math.ceil(old.offer.total / old.chunk) && equalBytes(p.payload, finishBytes(old.offer.total, old.offer.checksum))) this.reply({ ...p, kind: Kind.FIN_ACK });
         if (old.completed && (p.kind === Kind.DATA || p.kind === Kind.CONTENT_DATA_ALT) && p.seq < Math.ceil(old.offer.total / old.chunk) && p.payload.length === Math.min(old.chunk, old.offer.total - p.seq * old.chunk)) this.reply({ ...p, kind: Kind.ACK, payload: empty() });
         return; // Retired HELLO never reopens a completed/cancelled/expired session.
       }
+      if (p.kind === Kind.SHORT_TEXT) { this.receiveShortText(p); return; }
       let rx = this.incoming;
       if (p.kind === Kind.HELLO || p.kind === Kind.CONTENT_HELLO) {
         const content = p.kind === Kind.CONTENT_HELLO;
@@ -263,17 +285,34 @@ export class StopAndWait {
       await this.clock.sleep(this.timing.backoffMs * Math.min(8, 2 ** (attempt - 1)) * (1 + jitter), signal);
     }
   }
-  async send(data: Uint8Array, options: { content?: boolean; acknowledged?: (bodyBytes: number, chunk: number, at: number) => void } = {}): Promise<void> {
+  async send(data: Uint8Array, options: { content?: boolean; shortText?: boolean; acknowledged?: (bodyBytes: number, chunk: number, at: number) => void } = {}): Promise<void> {
     if (this.disposed) throw new Error('Transport is closed.');
     if (this.outgoing || this.incoming || this.replyAbort) throw new Error('Acoustic link busy; finish the current transfer first.');
     if (!data.length || data.length > MAX_TRANSFER_BYTES) throw new Error(`Transfer must contain 1–${MAX_TRANSFER_BYTES} bytes.`);
     const owned = Uint8Array.from(data), checksum = crc32(owned);
+    const content = options.content || options.shortText;
+    if (options.shortText) {
+      if (owned.length > this.capacity) throw new Error('Short text must fit in one acoustic packet.');
+      const item = verifyContent(owned);
+      if (item.kind !== 'text' || !item.bytes.length) throw new Error('Short text requires nonempty UTF-8 text.');
+    }
     this.txPolicy = 'Balanced';
     const started = this.clock.now();
     let confirmedBytes = 0;
     const tx = this.outgoing = { session: this.id(), transfer: this.id(), abort: new AbortController() };
     const packet = (kind: Kind, seq: number, payload = empty()): Packet => ({ kind, seq, session: tx.session, transfer: tx.transfer, payload });
     try {
+      if (options.shortText) {
+        const request = packet(Kind.SHORT_TEXT, 0, owned);
+        const receipt = finishBytes(owned.length, checksum);
+        this.state('negotiating', 'Contacting receiver with short text. Waiting for its verified acoustic receipt.');
+        await this.exchange({ ...request, payload: contentMask(request) }, Kind.FIN_ACK, p => equalBytes(p.payload, receipt), tx.abort.signal);
+        tx.abort.signal.throwIfAborted();
+        options.acknowledged?.(owned.length, this.capacity, this.clock.now());
+        confirmedBytes = owned.length - FIXED_MANIFEST - owned[4];
+        this.state('completed', 'Short text confirmed by acoustic FIN_ACK.');
+        return;
+      }
       this.state('negotiating', 'Sending acoustic HELLO; waiting for capabilities.');
       const caps = await this.exchange(packet(options.content ? Kind.CONTENT_HELLO : Kind.HELLO, 0, offerBytes({ total: owned.length, checksum, chunk: this.capacity, maxTransfer: MAX_TRANSFER_BYTES })), options.content ? Kind.CONTENT_CAPS : Kind.CAPS, p => {
         const c = readCaps(p.payload); return c.chunk <= this.capacity && c.maxTransfer >= owned.length && Math.ceil(owned.length / c.chunk) <= MAX_CHUNKS;
@@ -295,7 +334,7 @@ export class StopAndWait {
       // Best effort cancellation is itself acoustic and bounded to one transmission.
       if (!this.disposed) { try { await this.transmit(packet(Kind.CANCEL, 0), this.lifetime.signal); } catch { /* Original failure remains the terminal reason. */ } }
       throw error;
-    } finally { if (options.content && !this.disposed) this.controller.finish(confirmedBytes, this.clock.now() - started); if (this.outgoing === tx) this.outgoing = undefined; this.waiter = undefined; }
+    } finally { if (content && !this.disposed) this.controller.finish(confirmedBytes, this.clock.now() - started); if (this.outgoing === tx) this.outgoing = undefined; this.waiter = undefined; }
   }
   cancel() {
     this.outgoing?.abort.abort(new Error('Transfer cancelled locally. Delivery unconfirmed.'));

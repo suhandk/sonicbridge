@@ -1,4 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { Button } from '@/components/sodium/ui/button';
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/sodium/ui/empty-state';
+import { Frame, FrameBody, FrameFooter, FrameHeader, FrameStatus, FrameTitle } from '@/components/sodium/ui/frame';
+import { SegmentedControl, SegmentedControlItem } from '@/components/sodium/ui/segmented-control';
+import { Status } from '@/components/sodium/ui/status';
+import { StatusStrip, StatusStripCell, StatusStripLabel, StatusStripUnit, StatusStripValue } from '@/components/sodium/ui/status-strip';
 
 export interface SignalFrame { pcm: Float32Array; rate: number; source: string; position?: () => number | undefined }
 const N = 64;
@@ -10,9 +16,13 @@ for (let k = 0; k < N/2; k++) for (let i = 0; i < N; i++) {
 function draw(canvas: HTMLCanvasElement, frame: SignalFrame, spectrum: boolean) {
   const ctx = canvas.getContext('2d'); if (!ctx) return;
   const { width, height } = canvas, pcm = frame.pcm;
+  const palette = getComputedStyle(canvas);
+  const forcedColors = matchMedia('(forced-colors: active)').matches;
+  const trace = forcedColors ? 'CanvasText' : palette.getPropertyValue('--accent-text').trim();
+  const heat = forcedColors ? 'CanvasText' : palette.getPropertyValue('--data-1').trim();
   ctx.clearRect(0, 0, width, height);
   if (!spectrum) {
-    ctx.strokeStyle = '#8df1f5'; ctx.lineWidth = 2; ctx.beginPath();
+    ctx.strokeStyle = trace; ctx.lineWidth = 2; ctx.beginPath();
     for (let x = 0; x < width; x++) {
       const start = Math.floor(x*pcm.length/width), end = Math.max(start+1, Math.floor((x+1)*pcm.length/width));
       let min = pcm[start], max = min;
@@ -22,21 +32,20 @@ function draw(canvas: HTMLCanvasElement, frame: SignalFrame, spectrum: boolean) 
     ctx.stroke(); return;
   }
   const columns = Math.floor(pcm.length/N);
+  ctx.fillStyle = heat;
   for (let x = 0; x < columns; x++) for (let k = 0; k < N/2; k++) {
     let real = 0, imag = 0;
     for (let i = 0; i < N; i++) { real += pcm[x*N+i]*cos[k*N+i]; imag += pcm[x*N+i]*sin[k*N+i]; }
     const db = 20*Math.log10(Math.max(1e-8, 4*Math.hypot(real,imag)/N));
     const strength = Math.max(0, Math.min(1, (db+80)/80));
-    ctx.fillStyle = `rgb(141 241 245 / ${strength})`;
+    ctx.globalAlpha = strength;
     ctx.fillRect(x*width/columns, height-(k+1)*height/(N/2), Math.ceil(width/columns), Math.ceil(height/(N/2)));
   }
+  ctx.globalAlpha = 1;
 }
 interface InstrumentProps {
   frame: RefObject<SignalFrame | undefined>;
-  engagement: number;
-  engaging: boolean;
   live: boolean;
-  receiving: boolean;
   verified: boolean;
   caption: string;
 }
@@ -48,7 +57,7 @@ function currentWindow(frame?: SignalFrame): SignalFrame | undefined {
   const pcm = frame.pcm.subarray(offset, offset + 2048);
   return pcm.length ? { ...frame, pcm } : undefined;
 }
-export function SignalView({ frame, engagement, engaging, live, receiving, verified, caption }: InstrumentProps) {
+export function SignalView({ frame, live, verified, caption }: InstrumentProps) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [spectrum, setSpectrum] = useState(false), [paused, setPaused] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [display, setDisplay] = useState<SignalFrame>();
@@ -57,21 +66,63 @@ export function SignalView({ frame, engagement, engaging, live, receiving, verif
     const refresh = () => { if (!document.hidden) setDisplay(currentWindow(frame.current)); };
     refresh(); const timer = setInterval(refresh, 250); return () => clearInterval(timer);
   }, [paused, frame]);
-  useEffect(() => { if (canvas.current && display) draw(canvas.current, display, spectrum); }, [display, spectrum]);
+  useEffect(() => {
+    const surface = canvas.current;
+    if (!surface || !display) return;
+    const redraw = () => draw(surface, display, spectrum);
+    redraw();
+    const observer = new MutationObserver(redraw);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, [display, spectrum]);
   let peak = 0;
-  if (live && display && !paused) for (const value of display.pcm) peak = Math.max(peak, Math.abs(value));
-  return <section className="scope" aria-label="Signal monitor">
-    <div className="instrument-title"><h2>Acoustic transducer</h2><span>{caption}</span></div>
-    <div className="housing" data-receive={receiving} data-verified={verified} aria-hidden="true">
-      <div key={engagement} className={'driver'+(engaging ? ' engaging' : '')}>
-        <div className="rim"><div className="surround"><div className="diaphragm" style={{scale:1+peak*.035}}><div className="dustcap"/></div></div></div>
-        <i className="screw nw"/><i className="screw ne"/><i className="screw sw"/><i className="screw se"/>
+  if (display) for (const value of display.pcm) peak = Math.max(peak, Math.abs(value));
+  const windowMs = display ? 1000 * display.pcm.length / display.rate : undefined;
+  const axisLabels = spectrum ? [display ? (display.rate / 2000).toLocaleString() : 'Nyq', '0'] : ['+1', '0', '−1'];
+  const signalStatus = paused ? 'paused' : live ? 'running' : verified ? 'ok' : 'idle';
+  const signalLabel = { paused: 'Paused', running: 'Live', ok: 'Verified', idle: display ? 'Captured' : 'Standby' }[signalStatus];
+
+  return <Frame className="scope" aria-label="Signal monitor">
+    <FrameHeader>
+      <FrameTitle>Signal monitor</FrameTitle>
+      <FrameStatus><Status size="sm" status={signalStatus}>{signalLabel}</Status></FrameStatus>
+    </FrameHeader>
+    <FrameBody className="signal-chart">
+      <div className="signal-caption type-label-sm"><span>{display?.source ?? caption}</span><span>{spectrum ? 'Frequency · kHz' : 'Amplitude · FS'}</span></div>
+      <div className="signal-frame">
+        <div className="signal-y-axis type-micro" aria-hidden="true">{axisLabels.map(label => <span key={label}>{label}</span>)}</div>
+        <div className="signal-plot">
+          {!spectrum && <div className="signal-zero" aria-hidden="true"/>}
+          {display ? <canvas ref={canvas} width={512} height={192} role="img" aria-label={spectrum ? 'Spectrogram of sampled PCM' : 'Waveform of sampled PCM'}/> :
+            <Empty className="signal-empty" reason="empty" variant="plain" size="sm"><EmptyHeader><EmptyTitle>Waiting for audio</EmptyTitle></EmptyHeader></Empty>}
+        </div>
+        <div className="signal-x-axis type-micro" aria-hidden="true"><span>0 ms</span><span>{windowMs === undefined ? 'Time' : `${windowMs.toFixed(1)} ms`}</span></div>
       </div>
-    </div>
-    <div className="scope-head"><h2>Signal monitor</h2><span className="mono">{display?.source ?? 'Standby'}</span></div>
-    <div className="plot">{display ? <canvas ref={canvas} width={512} height={100} role="img" aria-label={spectrum ? 'Spectrogram of sampled PCM' : 'Waveform of sampled PCM'}/> : <span>Waiting for audio</span>}</div>
-    <div className="scope-axis mono"><span>{spectrum ? 'Frequency · 0 to Nyquist' : 'Amplitude · ±1 FS'}</span><span>{display ? `${(1000*display.pcm.length/display.rate).toFixed(1)} ms · ${display.rate} Hz` : '— ms'}</span></div>
-    <div className="scope-actions"><div className="pair"><button aria-pressed={!spectrum} onClick={() => setSpectrum(false)}>Waveform</button><button aria-pressed={spectrum} onClick={() => setSpectrum(true)}>Spectrogram</button></div>
-    <button onClick={() => { if (paused) setDisplay(currentWindow(frame.current)); setPaused(!paused); }}>{paused ? 'Resume plot' : 'Pause plot'}</button></div>
-  </section>;
+    </FrameBody>
+    <FrameBody padding="none">
+      <StatusStrip label="Sample measurements" variant="plain" className="signal-metrics">
+        <StatusStripCell>
+          <StatusStripLabel>Sample rate</StatusStripLabel>
+          <StatusStripValue>{display ? <>{(display.rate / 1000).toLocaleString()} <StatusStripUnit>kHz</StatusStripUnit></> : '—'}</StatusStripValue>
+        </StatusStripCell>
+        <StatusStripCell>
+          <StatusStripLabel>Peak</StatusStripLabel>
+          <StatusStripValue>{display ? <>{peak.toFixed(3)} <StatusStripUnit>FS</StatusStripUnit></> : '—'}</StatusStripValue>
+        </StatusStripCell>
+        <StatusStripCell>
+          <StatusStripLabel>Window</StatusStripLabel>
+          <StatusStripValue>{windowMs === undefined ? '—' : <>{windowMs.toFixed(1)} <StatusStripUnit>ms</StatusStripUnit></>}</StatusStripValue>
+        </StatusStripCell>
+      </StatusStrip>
+    </FrameBody>
+    <FrameFooter className="signal-controls">
+      <SegmentedControl multiple aria-label="Signal display" value={[spectrum ? 'spectrogram' : 'waveform']} onValueChange={values => {
+        if (values.length === 2) setSpectrum(value => !value);
+      }}>
+        <SegmentedControlItem value="waveform">Waveform</SegmentedControlItem>
+        <SegmentedControlItem value="spectrogram">Spectrogram</SegmentedControlItem>
+      </SegmentedControl>
+      <Button variant="secondary" onClick={() => { if (paused) setDisplay(currentWindow(frame.current)); setPaused(!paused); }}>{paused ? 'Resume plot' : 'Pause plot'}</Button>
+    </FrameFooter>
+  </Frame>;
 }

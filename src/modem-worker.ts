@@ -11,7 +11,7 @@ scope.onmessage = async ({ data }) => {
     }
     if (!modem) throw new Error('DSP worker is not initialized.');
     if (kind === 'encode') {
-      const pcm = modem.encodeBytes(data.bytes);
+      const pcm = modem.encodeBytes(data.bytes, data.profile);
       scope.postMessage({ id, pcm }, [pcm.buffer as ArrayBuffer]);
     } else if (kind === 'decode') {
       const packets = modem.decodeBytes(data.pcm);

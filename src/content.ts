@@ -1,4 +1,5 @@
 import { sha256 } from '@noble/hashes/sha2.js';
+import type { AudibleProfile } from './modem';
 import { MAX_TRANSFER_BYTES, MAX_PAYLOAD, HEADER_BYTES, CRC_BYTES, equalBytes } from './protocol';
 
 export type ContentKind = 'text' | 'image' | 'file';
@@ -45,9 +46,16 @@ export function verifyContent(body: Uint8Array) {
 export type VerifiedContent = ReturnType<typeof verifyContent>;
 export interface Measurement { goodput: number; chunk: number; modelSeconds: number; elapsed: number }
 // Fit to local 48 kHz AUDIBLE_FAST packet airtime: 20 B = 2.091 s, 140 B = 9.259 s.
-export function estimateTransfer(bodySize: number, chunk = MAX_PAYLOAD, robust = false) {
-  const count = Math.ceil(bodySize / chunk), frame = HEADER_BYTES + CRC_BYTES;
-  const packets = 4 + count * 2 + (robust ? 2 : 0);
-  const wireBytes = bodySize + packets * frame + 15 + 7 + 8 + 8 + (robust ? 2 : 0);
-  return { count, packets, wireBytes, seconds: packets * (0.896 + 0.5) + wireBytes * 0.05974 + (robust ? count * 0.8 : 0) };
+export function estimateTransfer(bodySize: number, chunk = MAX_PAYLOAD, robust = false, { shortText = false, profile }: { shortText?: boolean; profile?: AudibleProfile } = {}) {
+  const count = shortText ? 1 : Math.ceil(bodySize / chunk);
+  const frame = HEADER_BYTES + CRC_BYTES;
+  const policyPackets = robust && !shortText ? 1 : 0;
+  const perDevice = shortText ? 1 : 2 + count + policyPackets;
+  const outgoingBytes = bodySize + perDevice * frame + (shortText ? 0 : 15 + 8 + policyPackets);
+  const replyBytes = perDevice * frame + 8 + (shortText ? 0 : 7 + policyPackets);
+  const outgoing = profile === 'Audible Fastest'
+    ? perDevice * 0.789 + outgoingBytes * 0.02987
+    : perDevice * 0.896 + outgoingBytes * 0.05974;
+  const replies = perDevice * 0.896 + replyBytes * 0.05974;
+  return { count, packets: 2 * perDevice, wireBytes: outgoingBytes + replyBytes, seconds: outgoing + replies + perDevice + (robust && !shortText ? count * 0.8 : 0) };
 }

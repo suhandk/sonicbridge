@@ -5,8 +5,8 @@ export const HEADER_BYTES = 16;
 export const CRC_BYTES = 4;
 export const MAX_TRANSFER_BYTES = 4096;
 export const MAX_CHUNKS = 128;
-export const BASELINE = 1; // All v1 packets: ggwave AUDIBLE_FAST, variable length, no DSS.
-export enum Kind { HELLO = 1, CAPS, DATA, ACK, FIN, FIN_ACK, CANCEL, CONTENT_HELLO, CONTENT_CAPS, CONTENT_DATA_ALT, SET_POLICY, POLICY_ACK }
+export const BASELINE = 1; // ggwave audible family, variable length, no DSS. Fast is the default.
+export enum Kind { HELLO = 1, CAPS, DATA, ACK, FIN, FIN_ACK, CANCEL, CONTENT_HELLO, CONTENT_CAPS, CONTENT_DATA_ALT, SET_POLICY, POLICY_ACK, SHORT_TEXT }
 export interface Packet { kind: Kind; session: number; transfer: number; seq: number; payload: Uint8Array }
 export function payloadCapacity(limit = MAX_BYTES) {
   if (!Number.isInteger(limit) || limit < HEADER_BYTES + CRC_BYTES + 15 || limit > MAX_BYTES) throw new Error('Unsupported decoded modem limit.');
@@ -23,15 +23,17 @@ export function crc32(bytes: Uint8Array): number {
 }
 function shape(kind: Kind, length: number) {
   const sizes: Partial<Record<Kind, number>> = { [Kind.HELLO]: 15, [Kind.CAPS]: 7, [Kind.ACK]: 0, [Kind.FIN]: 8, [Kind.FIN_ACK]: 8, [Kind.CANCEL]: 0, [Kind.CONTENT_HELLO]: 15, [Kind.CONTENT_CAPS]: 7, [Kind.SET_POLICY]: 1, [Kind.POLICY_ACK]: 1 };
-  if (kind < Kind.HELLO || kind > Kind.POLICY_ACK || !Number.isInteger(kind) || ((kind === Kind.DATA || kind === Kind.CONTENT_DATA_ALT) ? length < 1 : length !== sizes[kind])) throw new Error('Invalid packet type or payload length.');
+  const variable = kind === Kind.DATA || kind === Kind.CONTENT_DATA_ALT || kind === Kind.SHORT_TEXT;
+  if (kind < Kind.HELLO || kind > Kind.SHORT_TEXT || !Number.isInteger(kind) || (variable ? length < 1 : length !== sizes[kind])) throw new Error('Invalid packet type or payload length.');
 }
+const startsAtZero = (kind: Kind) => kind === Kind.HELLO || kind === Kind.CAPS || kind === Kind.CONTENT_HELLO || kind === Kind.CONTENT_CAPS || kind === Kind.SHORT_TEXT;
 function uint(value: number, max: number, nonzero = false) {
   if (!Number.isInteger(value) || value < (nonzero ? 1 : 0) || value > max) throw new Error('Invalid packet identifier.');
 }
 export function encodePacket(p: Packet, limit = MAX_BYTES): Uint8Array {
   if (p.payload.length > payloadCapacity(limit)) throw new Error('Packet exceeds decoded modem limit.');
   uint(p.session, 0xffffffff, true); uint(p.transfer, 0xffffffff, true); uint(p.seq, 0xffff); shape(p.kind, p.payload.length);
-  if ((p.kind === Kind.HELLO || p.kind === Kind.CAPS || p.kind === Kind.CONTENT_HELLO || p.kind === Kind.CONTENT_CAPS) && p.seq !== 0) throw new Error('Invalid handshake sequence.');
+  if (startsAtZero(p.kind) && p.seq !== 0) throw new Error('Invalid opening sequence.');
   const bytes = new Uint8Array(HEADER_BYTES + p.payload.length + CRC_BYTES), v = new DataView(bytes.buffer);
   v.setUint16(0, 0x5342); v.setUint8(2, VERSION); v.setUint8(3, p.kind);
   v.setUint32(4, p.session); v.setUint32(8, p.transfer); v.setUint16(12, p.seq); v.setUint16(14, p.payload.length);
@@ -50,7 +52,7 @@ export function decodePacket(bytes: Uint8Array, limit = MAX_BYTES): Packet {
   shape(kind, length);
   const session = v.getUint32(4), transfer = v.getUint32(8);
   uint(session, 0xffffffff, true); uint(transfer, 0xffffffff, true);
-  if ((kind === Kind.HELLO || kind === Kind.CAPS || kind === Kind.CONTENT_HELLO || kind === Kind.CONTENT_CAPS) && seq !== 0) throw new Error('Invalid handshake sequence.');
+  if (startsAtZero(kind) && seq !== 0) throw new Error('Invalid opening sequence.');
   if (v.getUint32(bytes.length - CRC_BYTES) !== crc32(bytes.subarray(0, -CRC_BYTES))) throw new Error('Packet CRC32 mismatch.');
   return { kind, session, transfer, seq, payload: bytes.subarray(HEADER_BYTES, -CRC_BYTES) };
 }

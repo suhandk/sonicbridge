@@ -12,7 +12,7 @@ The production archive includes this inventory and full MIT notices in `vendor/T
 | React 19.3.1, React DOM 19.3.1, Scheduler 0.28.0 | Copyright (c) Meta Platforms, Inc. and affiliates. MIT. | [React repository](https://github.com/facebook/react) |
 | @noble/hashes 2.4.0 | Copyright (c) 2022 Paul Miller. MIT. | [noble-hashes](https://github.com/paulmillr/noble-hashes) |
 
-Geist and IBM Plex Mono are bundled locally through Fontsource. Both fonts use the SIL Open Font License 1.1. The production notices include their full license texts.
+The Sodium subsets of Commit Mono and Inter Display are bundled locally from design.how. Both fonts use the SIL Open Font License 1.1. The production notices include their full license texts. [Commit Mono](https://commitmono.com/) · [Inter](https://rsms.me/inter/)
 
 The upstream ggwave script and the installed npm script matched byte-for-byte at SHA-256 `f3792b5c185345a35a935ca68a5064b97f979d13fbba0062ff16f6b3b31a6113`. The module-worker copy appends an export to that script. [Upstream JavaScript](https://github.com/ggerganov/ggwave/blob/e035c75be1916ed8c0d1a38e823981366da3971e/bindings/javascript/ggwave.js)
 
@@ -69,14 +69,13 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
-node_modules/@fontsource-variable/geist/LICENSE
+public/vendor/CommitMono-LICENSE.txt
 
-Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font) Geist-Italic[wght].ttf: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)
+Copyright (c) 2023 Eigil Nikolajsen (eigi0088@gmail.com)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL
-
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
@@ -117,7 +116,7 @@ new environment.
 "Author" refers to any designer, engineer, programmer, technical
 writer or other person who contributed to the Font Software.
 
-PERMISSION & CONDITIONS
+PERMISSION AND CONDITIONS
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of the Font Software, to use, study, copy, merge, embed, modify,
 redistribute, and sell modified and unmodified copies of the Font
@@ -166,14 +165,13 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
-node_modules/@fontsource/ibm-plex-mono/LICENSE
+public/vendor/InterDisplay-LICENSE.txt
 
-Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-ThinItalic.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-ExtraLight.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-ExtraLightItalic.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-Light.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-LightItalic.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-Regular.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-Italic.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-Medium.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-MediumItalic.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-SemiBold.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-SemiBoldItalic.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-Bold.ttf: Copyright 2017 IBM Corp. All rights reserved. IBMPlexMono-BoldItalic.ttf: Copyright 2017 IBM Corp. All rights reserved.
+Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL
-
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
@@ -214,7 +212,7 @@ new environment.
 "Author" refers to any designer, engineer, programmer, technical
 writer or other person who contributed to the Font Software.
 
-PERMISSION & CONDITIONS
+PERMISSION AND CONDITIONS
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of the Font Software, to use, study, copy, merge, embed, modify,
 redistribute, and sell modified and unmodified copies of the Font

@@ -44,6 +44,33 @@ function setup(fault: Fault = () => undefined) {
   return { clock, a, b, tx, rx, content, delivered, selfDelivered, states, diagnostics, close() { tx.dispose(); rx.dispose(); a.close(); b.close(); } };
 }
 const data = Uint8Array.from({ length: 301 }, (_, i) => (i * 19) & 255);
+it('retries a lost short-text receipt and delivers the verified text exactly once', async () => {
+  const s = setup((p, _side, n) => p.kind === Kind.FIN_ACK && n === 1 ? { drop: true } : undefined);
+  const message = 'Sonic 🌉';
+  const body = packContent('text', 'message.txt', new TextEncoder().encode(message));
+  try {
+    await s.clock.drive(s.tx.send(body, { shortText: true }));
+    expect(s.a.log.map(p => p.kind)).toEqual([Kind.SHORT_TEXT, Kind.SHORT_TEXT]);
+    expect(s.b.log.map(p => p.kind)).toEqual([Kind.FIN_ACK, Kind.FIN_ACK]);
+    expect(s.content.map(item => item.text)).toEqual([message]);
+    expect(s.states.at(-1)).toContain('completed: Short text confirmed');
+  } finally { s.close(); }
+});
+it('does not return a short-text receipt when the packet CRC passes but SHA-256 fails', async () => {
+  const s = setup(p => {
+    if (p.kind !== Kind.SHORT_TEXT) return;
+    const payload = p.payload.slice();
+    payload[payload.length - 1] ^= 1;
+    return { replace: encodePacket({ ...p, payload }) };
+  });
+  try {
+    const body = packContent('text', 'message.txt', Uint8Array.of(65));
+    await expect(s.clock.drive(s.tx.send(body, { shortText: true }))).rejects.toThrow('FIN_ACK timed out');
+    expect(s.diagnostics).toContain('Rejected acoustic packet: Error: Whole-file SHA-256 mismatch.');
+    expect(s.b.log).toHaveLength(0);
+    expect(s.content).toHaveLength(0);
+  } finally { s.close(); }
+});
 for (const loss of [Kind.HELLO, Kind.CAPS, Kind.DATA, Kind.ACK, Kind.FIN, Kind.FIN_ACK]) {
   it(`recovers a lost ${Kind[loss]} without duplicate delivery`, async () => {
     const s = setup((p, _side, n) => p.kind === loss && n === 1 ? { drop: true } : undefined);

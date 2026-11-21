@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { VerifiedContent } from './content';
 import { inspectRaster } from './images';
+import { Button } from './components/sodium/ui/button';
 
 export function RasterPreview({ bytes, mime }: { bytes: Uint8Array; mime: string }) {
   const [url, setUrl] = useState('');
@@ -23,7 +24,7 @@ export function ReceivedFile({ item, preview, select }: { item: VerifiedContent;
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return <><p>{item.name} · {item.bytes.length} bytes · SHA-256 verified</p>
-    {image && <button onClick={select}>{preview ? 'Close preview' : 'Preview image'} · {image.width} × {image.height}</button>}
+    {image && <Button variant="secondary" onClick={select}>{preview ? 'Close preview' : 'Preview image'} · {image.width} × {image.height}</Button>}
     {preview && image && <RasterPreview bytes={item.bytes} mime={image.mime}/>}
-    <button onClick={download}>Download as .bin</button></>;
+    <Button variant="secondary" onClick={download}>Download as .bin</Button></>;
 }

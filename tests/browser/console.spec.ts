@@ -2,10 +2,10 @@ import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { readWav } from '../../src/wav';
 
-test('physical sender UI confirms a PCM peer through synthetic microphone capture', async ({ page }) => {
+for (const shortText of [false, true]) test(`physical sender confirms a PCM peer through synthetic microphone capture (${shortText ? 'Fastest short text' : 'standard'})`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto('/');
-  await page.evaluate(async () => {
+  await page.evaluate(async shortText => {
     const modemPath = '/src/modem.ts', transportPath = '/src/transport.ts';
     const { createModem, decodeBinaryFixture } = await import(modemPath) as typeof import('../../src/modem');
     const { StopAndWait } = await import(transportPath) as typeof import('../../src/transport');
@@ -31,23 +31,34 @@ test('physical sender UI confirms a PCM peer through synthetic microphone captur
     new StopAndWait({
       maxPacketBytes:140, subscribe(fn) { inject=fn; return () => {}; },
       async send(bytes) {
-        const pcm=modem.encodeBytes(bytes), buffer=ctx.createBuffer(1,pcm.length,48000);
+        const pcm=modem.encodeBytes(bytes, shortText ? 'Audible Fastest' : 'Audible Fast'), buffer=ctx.createBuffer(1,pcm.length,48000);
         buffer.copyToChannel(Float32Array.from(pcm),0);
         const source=ctx.createBufferSource(); source.buffer=buffer; source.connect(microphone);
         await new Promise<void>(resolve => { source.onended=() => {source.disconnect();resolve();}; originalStart.call(source); });
       },
     }, undefined, { content: item => { document.body.dataset.peerReceived=item.text; } });
-  });
+  }, shortText);
   await page.getByRole('button',{name:'Start Audio',exact:true}).click();
   await page.getByLabel('What would you like to send?').fill('Acoustic sender check');
+  if (shortText) {
+    await page.getByLabel('Playback profile').selectOption('Audible Fastest');
+    await page.getByRole('checkbox', { name: 'Use short-text fast path' }).check();
+    await expect(page.getByText(/2 acoustic packets/)).toBeVisible();
+  }
   await page.getByRole('button',{name:'Start transmission'}).click();
   const monitor=page.getByLabel('Transfer monitor');
   await expect(monitor).toContainText('Delivery confirmed',{timeout:50000});
+  await expect(monitor.getByRole('region', { name: 'Delivery proof' })).toContainText('acoustic FIN_ACK reached this device');
   await expect(page.locator('body')).toHaveAttribute('data-peer-received','Acoustic sender check');
-  await expect(monitor).toContainText('21 / 21 unique content bytes acknowledged');
-  await expect(monitor).toContainText('Audible Fast · Balanced');
+  await expect(monitor.getByRole('progressbar', { name: 'Bytes acknowledged' })).toHaveAttribute('aria-valuenow', '21');
+  await expect(monitor.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '21');
+  await expect(monitor).toContainText(shortText ? 'Audible Fastest · Balanced' : 'Audible Fast · Balanced');
   await page.getByText('Packet timeline').click();
   await expect(page.locator('.timeline ol')).toContainText('FIN_ACK');
+  if (shortText) {
+    await expect(page.locator('.timeline ol li')).toHaveCount(2);
+    await expect(page.locator('.timeline ol')).toContainText('SHORT_TEXT');
+  }
   expect(errors).toEqual([]);
 });
 
@@ -57,13 +68,20 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
   await page.goto('/');
   await page.keyboard.press('Tab'); await expect(page.getByRole('link',{name:'Skip to transfer controls'})).toBeFocused();
   await page.getByRole('button',{name:'Start Audio',exact:true}).click();
-  await page.getByRole('button', {name:'↙ Receive'}).click();
+  await page.getByRole('radio', { name: 'Receive' }).click();
+  const linkCheck = page.getByRole('button', { name: /Check link/ });
+  await linkCheck.click();
+  await expect(page.getByRole('button', { name: 'Arm calibration receiver' })).toBeEnabled();
   await page.getByRole('button',{name:'Listen with microphone'}).click();
   await expect(page.getByRole('heading',{name:'Listening for a nearby sender'})).toBeVisible();
+  await page.getByRole('button', { name: 'Arm calibration receiver' }).click();
+  await expect(page.getByRole('button', { name: 'Calibration receiver armed' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Delivery proof' })).toHaveCount(0);
+  await linkCheck.click();
   await expect(page.getByRole('button',{name:'Resume plot'})).toBeVisible();
   await page.getByRole('button',{name:'Resume plot'}).click();
   await expect(page.locator('canvas')).toBeVisible();
-  await page.locator('summary').filter({hasText:'Technical details'}).focus();
+  await page.getByRole('button', { name: /Technical details/ }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button',{name:'Export microphone WAV'})).toHaveCount(0);
   await page.getByRole('button',{name:'Record 5 s of microphone'}).click();
@@ -77,7 +95,7 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
   for (const width of [320,390,768,1440]) {
     await page.setViewportSize({width,height:900});
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const targets=await page.locator('button:visible,summary:visible,select:visible').evaluateAll(nodes => nodes.every(n => n.getBoundingClientRect().height>=44));
+    const targets=await page.locator('button:visible,summary:visible,select:visible,[role="radio"]:visible').evaluateAll(nodes => nodes.every(n => n.getBoundingClientRect().height>=44));
     expect(targets).toBe(true);
   }
 });
@@ -85,7 +103,7 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
 test('engagement accepts one send and can be cancelled immediately', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
-  await page.getByRole('button', { name: 'Simulation · local PCM' }).click();
+  await page.getByRole('radio', { name: 'Simulation · local PCM' }).click();
   await page.getByLabel('What would you like to send?').fill('Cancel this transfer');
   const send = page.getByRole('button', { name: 'Run PCM simulation' });
   // The local clock is accelerated. Cancel on the first committed engagement frame.

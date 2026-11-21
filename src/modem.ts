@@ -1,5 +1,7 @@
 // Only this adapter knows the Emscripten / ggwave API.
 type EnumValue = object;
+export const AUDIBLE_PROFILES = { 'Audible Fast': 'GGWAVE_PROTOCOL_AUDIBLE_FAST', 'Audible Fastest': 'GGWAVE_PROTOCOL_AUDIBLE_FASTEST' } as const;
+export type AudibleProfile = keyof typeof AUDIBLE_PROFILES;
 interface Parameters {
   sampleRateInp: number; sampleRateOut: number;
   sampleFormatInp: EnumValue; sampleFormatOut: EnumValue;
@@ -8,7 +10,7 @@ interface Parameters {
 export interface GgModule {
   getDefaultParameters(): Parameters;
   SampleFormat: { GGWAVE_SAMPLE_FORMAT_F32: EnumValue };
-  ProtocolId: { GGWAVE_PROTOCOL_AUDIBLE_FAST: EnumValue };
+  ProtocolId: Record<(typeof AUDIBLE_PROFILES)[AudibleProfile], EnumValue>;
   init(parameters: Parameters): number;
   free(instance: number): void;
   encode(instance: number, text: string | Uint8Array, protocol: EnumValue, volume: number): Int8Array;
@@ -22,7 +24,7 @@ export interface Modem {
   readonly maxMessageBytes: number;
   encode(text: string): Float32Array;
   decode(pcm: Float32Array): string[];
-  encodeBytes(bytes: Uint8Array): Float32Array;
+  encodeBytes(bytes: Uint8Array, profile?: AudibleProfile): Float32Array;
   decodeBytes(pcm: Float32Array): Uint8Array[];
   reset(): void;
   dispose(): void;
@@ -58,11 +60,11 @@ export async function createModem(sampleRate: number, factory = window.ggwave_fa
     encode(text) {
       return modem.encodeBytes(new TextEncoder().encode(text));
     },
-    encodeBytes(data) {
+    encodeBytes(data, profile = 'Audible Fast') {
       check();
       if (!data.length || data.length > MAX_BYTES) throw new Error(`Message must contain 1–${MAX_BYTES} bytes (UTF-8 for text).`);
       // Embind std::string accepts Uint8Array, preserving NUL and bytes >= 0x80.
-      const raw = g.encode(instance, data, g.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FAST, 25);
+      const raw = g.encode(instance, data, g.ProtocolId[AUDIBLE_PROFILES[profile]], 25);
       if (!raw.length || raw.byteLength % 4) throw new Error('Modem returned an invalid waveform.');
       // Emscripten returns borrowed memory, invalidated by the next call: copy immediately.
       const bytes = Uint8Array.from(raw);

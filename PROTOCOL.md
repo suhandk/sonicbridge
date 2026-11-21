@@ -8,7 +8,7 @@ The pinned ggwave 0.4.0 variable-length decoded-message limit is **140 bytes**. 
 
 Embind `std::string` accepts a `Uint8Array`: binary is sent directly, preserving NUL and bytes ≥128. There is **no** UTF-8, base64, or hex expansion at the packet/modem boundary. Only text and filenames use UTF-8. Borrowed decode views are copied immediately.
 
-Baseline ID **1** means ggwave `ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FAST`, variable-length packets, DSS disabled, F32 audio. The internal modem rate remains 48 kHz; input/output rates match the local AudioContext. Every message type uses this baseline. Capabilities can reduce DATA size/transfer limits; they cannot change control modulation or disable baseline reception. Unknown baselines are rejected.
+Baseline ID **1** uses ggwave variable-length audible packets with DSS disabled and F32 audio. The default playback profile is `AUDIBLE_FAST`. Each device can opt into `AUDIBLE_FASTEST` for its outgoing packets, including replies. Receivers decode either profile. The internal modem rate remains 48 kHz and the input/output rates match the local AudioContext. The capability exchange still negotiates DATA size and transfer limits. Unknown baselines are rejected.
 
 ## Packet layout
 
@@ -39,13 +39,16 @@ Fixed overhead is `16 header + 4 CRC = 20 bytes`. Safe DATA payload is `actual d
 | DATA | 3 | 0 through N−1 | Raw body chunk, 1–selected DATA bytes |
 | ACK | 4 | DATA sequence being acknowledged | Empty |
 | FIN | 5 | N | 8 bytes: complete-body byte length u32, complete-body CRC32 u32 |
-| FIN_ACK | 6 | N | Same 8 bytes as verified FIN |
+| FIN_ACK | 6 | N for chunked transfers, 0 for SHORT_TEXT | Verified body length and CRC32 |
+| CANCEL | 7 | 0 emitted; any sequence accepted for matching active identity | Empty |
 | CONTENT_HELLO | 8 | 0 | Same offer as HELLO, requires content manifest v1 and SHA-256 verification |
 | CONTENT_CAPS | 9 | 0 | Same fields as CAPS, agrees to content v1 and length-preserving DATA whitening |
 | CONTENT_DATA_ALT | 10 | Same as DATA | Alternate whitening mask on even-numbered attempts |
 | SET_POLICY | 11 | Active content DATA sequence | One byte, Balanced (0) or Robust (1) |
 | POLICY_ACK | 12 | Matching switch sequence | Echo of the accepted policy |
-| CANCEL | 7 | 0 emitted; any sequence accepted for matching active identity | Empty |
+| SHORT_TEXT | 13 | 0 | Whitened text content manifest and UTF-8 bytes |
+
+With the optional short-text path, the sender fits the existing text manifest and payload into one `SHORT_TEXT` packet. The receiver verifies packet CRC, manifest, UTF-8 and content SHA-256, then returns `FIN_ACK` with sequence 0 and the length and CRC32 of the unmasked body. A matching receipt confirms the transfer. A lost receipt retries the same packet. The receiver retains the exact short packet in its bounded completion history and can re-ACK it without delivering the text again. Both devices need a build that understands `SHORT_TEXT`. The standard chunked path is still the default.
 
 Body CRC32 covers the complete, ordered raw transfer body, independent of packet CRCs. The receiver agrees to the smaller offered/local DATA capacity. CAPS must not increase the sender's offered DATA limit and must support the proposed body length. Both sides enforce `1 ≤ total ≤ 4096 bytes` and `N = ceil(total / selected DATA bytes) ≤ 128`. HELLO's maximum-transfer offer must be at least total and at most 4096. Invalid or unsupported CAPS is ignored; negotiation eventually fails within the retry budget.
 
@@ -136,6 +139,6 @@ The raw modulation carries three bytes per six 1024-sample frames at 48 kHz, or 
 
 For N DATA chunks, model 4 + 2N packets. Framed bytes equal manifest + content + 38 control payload bytes + 20 bytes per packet. The initial estimate uses a linear airtime approximation fitted to local 20-byte and 140-byte ggwave outputs (2.091 and 9.259 seconds) and adds a 0.5-second turnaround per packet. With a prior confirmed microphone transfer, scale modeled duration by that transfer's measured elapsed/model ratio, using its negotiated chunk size. The estimate assumes similar conditions and is advisory.
 
-Both pacing policies use baseline Audible Fast. SET_POLICY and POLICY_ACK travel acoustically before dependent DATA. The negotiation rules, timeout recovery and exact overhead are in [ADAPTIVE.md](ADAPTIVE.md).
+SET_POLICY and POLICY_ACK travel acoustically before dependent DATA. The short-text path uses baseline turnaround and retry timing. The negotiation rules, timeout recovery and exact overhead for chunked transfers are in [ADAPTIVE.md](ADAPTIVE.md).
 
 The paired PCM experiment imposes four DATA attempts per sequence, six extra sender requests across the whole trial and a 120 s wall on the virtual clock. These are experiment controls outside the wire format. Losing the last FIN_ACK can leave a verified receiver receipt while the sender terminates unconfirmed. The ledger therefore reports verified and sender-confirmed payload bytes separately. [Evaluation](BENCHMARKS.md)

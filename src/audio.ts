@@ -1,4 +1,4 @@
-import { MAX_BYTES } from './modem';
+import { MAX_BYTES, type AudibleProfile } from './modem';
 import { aborted } from './clock';
 import type { PacketChannel } from './transport';
 import { WorkerModem } from './worker-modem';
@@ -40,6 +40,7 @@ export class AudioLink implements PacketChannel {
   private playbackGain = DEFAULT_PLAYBACK_GAIN;
   inputDeviceId = '';
   outputDeviceId = '';
+  playbackProfile: AudibleProfile = 'Audible Fast';
   readonly maxPacketBytes = MAX_BYTES;
   diagnostics: AudioDiagnostics = { contextState: 'closed', permission: 'not requested', processing: [], deviceNote: 'Device names may be hidden until microphone permission is granted.' };
   onDiagnostics?: (diagnostics: AudioDiagnostics) => void;
@@ -131,7 +132,7 @@ export class AudioLink implements PacketChannel {
     this.transmitting = true; this.ignoreBefore = Infinity;
     try {
       await modem.reset();
-      const pcm = await modem.encode(bytes);
+      const pcm = await modem.encode(bytes, this.playbackProfile);
       if (signal.aborted) throw aborted(signal);
       if (this.context !== context) throw new Error('Audio route stopped during encoding.');
       this.running();

@@ -8,7 +8,8 @@ await writeFile(new URL('../public/vendor/ggwave.js', import.meta.url), runtime)
 await writeFile(new URL('../public/vendor/ggwave-module.mjs', import.meta.url), runtime + '\nexport default ggwave_factory;\n');
 const notices = [];
 for (const path of ['THIRD_PARTY_NOTICES.md', 'public/vendor/LICENSE.ggwave', 'public/vendor/LICENSE.reed-solomon',
-  ...['@fontsource-variable/geist', '@fontsource/ibm-plex-mono', 'react', 'react-dom', 'scheduler', '@noble/hashes'].map(name => `node_modules/${name}/LICENSE`)]) {
+  'public/vendor/CommitMono-LICENSE.txt', 'public/vendor/InterDisplay-LICENSE.txt',
+  ...['react', 'react-dom', 'scheduler', '@noble/hashes'].map(name => `node_modules/${name}/LICENSE`)]) {
   notices.push(path, await readFile(new URL('../' + path, import.meta.url), 'utf8'));
 }
 await writeFile(new URL('../public/vendor/THIRD_PARTY_NOTICES.txt', import.meta.url), notices.join('\n\n'));
