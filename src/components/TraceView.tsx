@@ -124,16 +124,21 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
           <p className="scenario-tagline">"Every handover. Verified. Offline."</p>
         </div>
         <div className="scenario-actions">
-          <button className="btn-secondary" onClick={() => defaultTraceState.resetDemo()}>
+          <button className="btn-secondary" onClick={() => {
+            if (window.confirm('Replace locally saved shipments and handovers with sample data?')) {
+              defaultTraceState.resetDemo();
+              setStatusMessage('Sample data restored.');
+            }
+          }}>
             Load Demo Preset
           </button>
-          <button className="btn-primary" onClick={() => setIsComposing(!isComposing)}>
+          <button className="btn-primary" aria-expanded={isComposing} onClick={() => setIsComposing(!isComposing)}>
             {isComposing ? 'Cancel Compose' : '+ Register Shipment'}
           </button>
         </div>
       </div>
 
-      {statusMessage && <div className="status-banner info">{statusMessage}</div>}
+      <div className={statusMessage ? "status-banner info" : undefined} role="status">{statusMessage}</div>
 
       {/* Logistics Dashboard Metrics */}
       <div className="dashboard-metrics">
@@ -160,8 +165,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
         <form className="console-form" onSubmit={handleCreateShipment}>
           <h3>Register New Physical Shipment</h3>
           <div className="form-group">
-            <label>Item Description</label>
-            <input
+            <label htmlFor="shipment-item">Item Description</label>
+            <input id="shipment-item"
               type="text"
               placeholder="e.g. Critical Vaccine Vials (Cold Chain 2-8°C)"
               value={itemDescription}
@@ -172,17 +177,17 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
 
           <div className="form-row">
             <div className="form-group">
-              <label>Quantity & Unit</label>
+              <label htmlFor="shipment-quantity">Quantity</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
-                  type="number"
+                  id="shipment-quantity" type="number"
                   value={quantity}
                   onChange={e => setQuantity(Number(e.target.value))}
                   style={{ width: '100px' }}
                   required
                 />
                 <input
-                  type="text"
+                  aria-label="Unit" type="text"
                   value={unit}
                   onChange={e => setUnit(e.target.value)}
                   style={{ width: '120px' }}
@@ -191,8 +196,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
               </div>
             </div>
             <div className="form-group">
-              <label>Sender Organization</label>
-              <input
+              <label htmlFor="shipment-organization">Sender Organization</label>
+              <input id="shipment-organization"
                 type="text"
                 value={senderOrg}
                 onChange={e => setSenderOrg(e.target.value)}
@@ -203,8 +208,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
 
           <div className="form-row">
             <div className="form-group">
-              <label>Origin Location</label>
-              <input
+              <label htmlFor="shipment-origin">Origin Location</label>
+              <input id="shipment-origin"
                 type="text"
                 value={origin}
                 onChange={e => setOrigin(e.target.value)}
@@ -212,8 +217,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
               />
             </div>
             <div className="form-group">
-              <label>Destination Location</label>
-              <input
+              <label htmlFor="shipment-destination">Destination Location</label>
+              <input id="shipment-destination"
                 type="text"
                 value={destination}
                 onChange={e => setDestination(e.target.value)}
@@ -239,8 +244,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
           <h3>Authorize Custody Handover — {selectedShipmentId}</h3>
           <div className="form-row">
             <div className="form-group">
-              <label>Transfer Custody To (Device / Agent ID)</label>
-              <input
+              <label htmlFor="shipment-recipient">Transfer Custody To (Device / Agent ID)</label>
+              <input id="shipment-recipient"
                 type="text"
                 value={handoverTo}
                 onChange={e => setHandoverTo(e.target.value)}
@@ -248,8 +253,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
               />
             </div>
             <div className="form-group">
-              <label>Handover Checkpoint Location</label>
-              <input
+              <label htmlFor="shipment-checkpoint">Handover Checkpoint Location</label>
+              <input id="shipment-checkpoint"
                 type="text"
                 value={handoverLocation}
                 onChange={e => setHandoverLocation(e.target.value)}
@@ -259,8 +264,8 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
           </div>
 
           <div className="form-group">
-            <label>Inspection & Verification Notes</label>
-            <input
+            <label htmlFor="shipment-notes">Inspection & Verification Notes</label>
+            <input id="shipment-notes"
               type="text"
               value={handoverNotes}
               onChange={e => setHandoverNotes(e.target.value)}
@@ -286,10 +291,11 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
             <div
               key={s.shipmentId}
               className={`shipment-card ${selectedShipmentId === s.shipmentId ? 'selected' : ''}`}
-              onClick={() => setSelectedShipmentId(s.shipmentId)}
             >
               <div className="shipment-card-top">
-                <strong>{s.shipmentId}</strong>
+                <button aria-pressed={selectedShipmentId === s.shipmentId} onClick={() => setSelectedShipmentId(s.shipmentId)}>
+                  View custody for {s.shipmentId}
+                </button>
                 <span className="badge-category">{s.packageId}</span>
               </div>
               <p className="shipment-item-title">{s.itemDescription}</p>
@@ -300,17 +306,13 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
               <div className="shipment-card-bottom">
                 <button
                   className="btn-transmit-acoustic"
-                  onClick={e => {
-                    e.stopPropagation();
-                    handleTransmitShipment(s);
-                  }}
+                  onClick={() => handleTransmitShipment(s)}
                 >
                   🔊 Transmit Custody
                 </button>
                 <button
                   className="btn-secondary"
-                  onClick={e => {
-                    e.stopPropagation();
+                  onClick={() => {
                     setSelectedShipmentId(s.shipmentId);
                     setIsHandingOver(true);
                   }}
@@ -356,7 +358,7 @@ export function TraceView({ bridge, onSendPayload, currentDeviceId }: TraceViewP
                       <p>Location: {h.location}</p>
                       {h.notes && <p className="timeline-notes">"{h.notes}"</p>}
                       <div className="sig-hash-line">
-                        <code>{h.signature.slice(0, 24)}...</code>
+                        <code>{h.signature}</code>
                       </div>
                     </div>
                   </div>

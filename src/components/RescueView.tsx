@@ -115,16 +115,21 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
           <p className="scenario-tagline">"Communication when infrastructure fails."</p>
         </div>
         <div className="scenario-actions">
-          <button className="btn-secondary" onClick={() => defaultRescueState.resetDemo()}>
+          <button className="btn-secondary" onClick={() => {
+            if (window.confirm('Replace locally saved incident reports with sample data?')) {
+              defaultRescueState.resetDemo();
+              setStatusMessage('Sample data restored.');
+            }
+          }}>
             Load Demo Preset
           </button>
-          <button className="btn-primary" onClick={() => setIsComposing(!isComposing)}>
+          <button className="btn-primary" aria-expanded={isComposing} onClick={() => setIsComposing(!isComposing)}>
             {isComposing ? 'Cancel Compose' : '+ Report Incident'}
           </button>
         </div>
       </div>
 
-      {statusMessage && <div className="status-banner info">{statusMessage}</div>}
+      <div className={statusMessage ? "status-banner info" : undefined} role="status">{statusMessage}</div>
 
       {/* Emergency Command Dashboard Stats */}
       <div className="dashboard-metrics">
@@ -156,8 +161,8 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
           <h3>New Emergency Incident Report</h3>
           <div className="form-row">
             <div className="form-group">
-              <label>Category</label>
-              <select value={category} onChange={e => setCategory(e.target.value as IncidentCategory)}>
+              <label htmlFor="incident-category">Category</label>
+              <select id="incident-category" value={category} onChange={e => setCategory(e.target.value as IncidentCategory)}>
                 <option value="food_water">Food & Water</option>
                 <option value="medical">Medical / Triage</option>
                 <option value="search_rescue">Search & Rescue</option>
@@ -167,8 +172,8 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
               </select>
             </div>
             <div className="form-group">
-              <label>Priority Level</label>
-              <select value={priority} onChange={e => setPriority(e.target.value as IncidentPriority)}>
+              <label htmlFor="incident-priority">Priority Level</label>
+              <select id="incident-priority" value={priority} onChange={e => setPriority(e.target.value as IncidentPriority)}>
                 <option value="Critical">Critical (Immediate)</option>
                 <option value="High">High (Within 6h)</option>
                 <option value="Medium">Medium</option>
@@ -178,8 +183,8 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
           </div>
 
           <div className="form-group">
-            <label>Incident Summary Title</label>
-            <input
+            <label htmlFor="incident-title">Incident Summary Title</label>
+            <input id="incident-title"
               type="text"
               placeholder="e.g. Drinking water required for 150 refugees"
               value={title}
@@ -190,8 +195,8 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
 
           <div className="form-row">
             <div className="form-group">
-              <label>Location Description</label>
-              <input
+              <label htmlFor="incident-location">Location Description</label>
+              <input id="incident-location"
                 type="text"
                 placeholder="Sector 4 Community Gymnasium"
                 value={location}
@@ -200,17 +205,17 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
               />
             </div>
             <div className="form-group">
-              <label>GPS Coordinates</label>
+              <span className="form-label">GPS coordinates</span>
               <button type="button" className="btn-secondary" onClick={handleGetLocation}>
-                {gps ? `${gps.latitude.toFixed(4)}, ${gps.longitude.toFixed(4)}` : 'Acquire GPS'}
+                {gps ? `Update GPS (${gps.latitude.toFixed(4)}, ${gps.longitude.toFixed(4)})` : 'Get GPS coordinates'}
               </button>
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label>People Affected</label>
-              <input
+              <label htmlFor="incident-affected">People Affected</label>
+              <input id="incident-affected"
                 type="number"
                 value={affected}
                 onChange={e => setAffected(Number(e.target.value))}
@@ -218,24 +223,24 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
               />
             </div>
             <div className="form-group">
-              <label>Required Resource</label>
-              <input
+              <label htmlFor="incident-resource">Required Resource</label>
+              <input id="incident-resource"
                 type="text"
                 value={resourceType}
                 onChange={e => setResourceType(e.target.value)}
               />
             </div>
             <div className="form-group">
-              <label>Quantity & Unit</label>
+              <label htmlFor="incident-quantity">Quantity</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
-                  type="number"
+                  id="incident-quantity" type="number"
                   value={resourceQty}
                   onChange={e => setResourceQty(Number(e.target.value))}
                   style={{ width: '80px' }}
                 />
                 <input
-                  type="text"
+                  aria-label="Unit" type="text"
                   value={resourceUnit}
                   onChange={e => setResourceUnit(e.target.value)}
                   style={{ width: '80px' }}
@@ -245,8 +250,8 @@ export function RescueView({ bridge, onSendPayload, currentDeviceId }: RescueVie
           </div>
 
           <div className="form-group">
-            <label>Detailed Description</label>
-            <textarea
+            <label htmlFor="incident-description">Detailed Description</label>
+            <textarea id="incident-description"
               rows={3}
               placeholder="Detailed assessment of conditions, hazards, and access routes..."
               value={description}

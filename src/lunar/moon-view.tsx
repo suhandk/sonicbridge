@@ -11,8 +11,8 @@ function initialEffects():Effects | null {
 export function MoonRelay({listening,transferring,failed,packets,preview}:{listening:boolean;transferring:boolean;failed:boolean;packets:PacketEvent[];preview:HTMLDivElement | null}) {
   const [preference,setPreference]=useState(initialEffects);
   const [osReduced,setOsReduced]=useState(()=>matchMedia('(prefers-reduced-motion:reduce)').matches);
-  const [unavailable,setUnavailable]=useState(false),[progress,setProgress]=useState(0),[skipped,setSkipped]=useState(false);
-  const effects=preference ?? (osReduced?'Reduced':'Full');
+  const [unavailable,setUnavailable]=useState(false),[progress,setProgress]=useState(0);
+  const effects=preference === 'Off' ? 'Off' : osReduced ? 'Reduced' : preference ?? 'Full';
   const reduced=effects==='Reduced', enabled=effects!=='Off'&&!unavailable;
   const host=useRef<HTMLDivElement>(null), scene=useRef<RelayScene|null>(null);
   const state=useRef<VisualState>({listening,transferring,failed,reduced});
@@ -55,15 +55,20 @@ export function MoonRelay({listening,transferring,failed,packets,preview}:{liste
     const id=setTimeout(()=>setBootDone(true),220);return()=>clearTimeout(id);
   },[progress]);
   return <>
-    <div className="relay-sky" aria-hidden="true" ref={host}/>
+    <div className="relay-sky" aria-hidden="true" ref={host}>
+      <picture>
+        <source media="(max-width: 720px)" srcSet={`${import.meta.env.BASE_URL}lunar/relay-mobile.webp`}/>
+        <img src={`${import.meta.env.BASE_URL}lunar/relay-desktop.webp`} alt="" fetchPriority="high"/>
+      </picture>
+    </div>
     <div className="effects-control"><label>Visual effects <select value={effects} onChange={e=>{
       const value=e.target.value as Effects;setPreference(value);setUnavailable(false);
       try{localStorage.setItem(storageKey,value);}catch{/* preferences remain available in this tab */}
-    }}><option>Full</option><option>Reduced</option><option>Off</option></select></label>
+    }}><option disabled={osReduced}>Full</option><option>Reduced</option><option>Off</option></select></label>
       {unavailable && <small>Static background · WebGL unavailable</small>}
     </div>
-    {enabled&&!reduced&&!skipped&&!bootDone&&<div className={'relay-boot'+(progress===100?' done':'')}>
-      <strong>{progress}</strong><span>Loading 3D model</span><button onClick={()=>setSkipped(true)}>Skip</button>
+    {enabled&&!reduced&&!bootDone&&<div className={'relay-boot'+(progress===100?' done':'')}>
+      <span>Loading 3D model</span><progress aria-label="Loading 3D model" value={progress} max={100}/>
     </div>}
   </>;
 }

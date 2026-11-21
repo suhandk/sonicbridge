@@ -21,7 +21,7 @@
     radial-gradient(circle 600px at 100% 100%, rgba(16, 185, 129, 0.05), transparent);
   color: #f1f5f9;
   min-height: 100vh;
-  font-family: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: Archivo, Arial, sans-serif;
   display: flex;
   flex-direction: column;
   max-width: 100%;
@@ -106,9 +106,7 @@ button.btn-small {
   font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: 0.08em;
-  background: linear-gradient(135deg, #38bdf8 0%, #00e5ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--white);
   margin: 0;
   text-shadow: 0 0 24px rgba(56, 189, 248, 0.4);
 }
@@ -258,7 +256,7 @@ button.btn-small {
   border-radius: 50%;
   background: #10b981;
   box-shadow: 0 0 10px #10b981;
-  animation: pulseGlow 1.8s infinite;
+
   display: inline-block;
 }
 
@@ -306,7 +304,7 @@ button.btn-small {
 .ticker-dot.active {
   background: #00e5ff;
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.9);
-  animation: pulseGlow 1.2s infinite;
+
 }
 
 .ticker-dot.warn {
@@ -355,8 +353,8 @@ button.btn-small {
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease;
+  white-space: normal;
 }
 
 .nav-tab-item:hover {
@@ -512,7 +510,7 @@ button.btn-small {
   margin-bottom: 12px;
 }
 
-.form-group label {
+.form-group :is(label, .form-label) {
   font-size: 0.76rem;
   color: #cbd5e1;
   margin-bottom: 8px;
@@ -723,9 +721,21 @@ button.btn-small {
 .btn-small.danger { background-color: #991b1b; color: #fee2e2; border-color: #ef4444; }
 
 /* Tables */
+.table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.table-scroll-hint { display: none; }
+@media (max-width: 860px) {
+  .table-scroll-hint { display: block; margin-inline: 14px; font-size: .875rem; }
+}
+.console-table :is(code, pre) {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .table-section {
   max-width: 100%;
-  overflow-x: auto;
   box-sizing: border-box;
   border-radius: 10px;
   border: 1px solid rgba(56, 189, 248, 0.15);
@@ -858,11 +868,11 @@ button.btn-small {
 }
 
 .report-card.priority-critical {
-  border-left: 4px solid #ef4444;
+  border-color: #ef4444;
 }
 
 .report-card.priority-high {
-  border-left: 4px solid #f97316;
+  border-color: #f97316;
 }
 
 .report-card-header {
@@ -1020,7 +1030,7 @@ button.btn-small {
 .trace-split-view,
 .identity-split-view {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
   max-width: 100%;
 }
@@ -1117,9 +1127,7 @@ button.btn-small {
 
 .console-root .heading h1 em {
   font-style: normal;
-  background: linear-gradient(135deg, #38bdf8 0%, #00e5ff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--white);
 }
 
 .console-root .heading p {
@@ -1247,13 +1255,13 @@ button.btn-small {
 
 .console-root .feedback {
   background: rgba(56, 189, 248, 0.08);
-  border-left: 4px solid #38bdf8;
+  border-color: #38bdf8;
   color: #7dd3fc;
 }
 
 .console-root .error {
   background: rgba(239, 68, 68, 0.1);
-  border-left: 4px solid #ef4444;
+  border-color: #ef4444;
   color: #fca5a5;
 }
 
@@ -1281,30 +1289,30 @@ button.btn-small {
 }
 
 .human-receipt-card.rescue-receipt.priority-critical {
-  border-left: 5px solid #ef4444;
+  border-color: #ef4444;
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(12, 18, 32, 0.95) 45%);
 }
 
 .human-receipt-card.rescue-receipt.priority-high {
-  border-left: 5px solid #f97316;
+  border-color: #f97316;
   background: linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(12, 18, 32, 0.95) 45%);
 }
 
 .human-receipt-card.rescue-receipt.priority-medium {
-  border-left: 5px solid #f59e0b;
+  border-color: #f59e0b;
 }
 
 .human-receipt-card.rescue-receipt.priority-low {
-  border-left: 5px solid #64748b;
+  border-color: #64748b;
 }
 
 .human-receipt-card.airgap-receipt {
-  border-left: 5px solid #38bdf8;
+  border-color: #38bdf8;
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(12, 18, 32, 0.95) 45%);
 }
 
 .human-receipt-card.trace-receipt {
-  border-left: 5px solid #10b981;
+  border-color: #10b981;
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(12, 18, 32, 0.95) 45%);
 }
 
@@ -1382,9 +1390,9 @@ button.btn-small {
 
 .receipt-description-box {
   background: rgba(0, 0, 0, 0.35);
-  border-left: 3px solid rgba(56, 189, 248, 0.4);
+  border: 1px solid var(--border);
   padding: 10px 14px;
-  border-radius: 0 6px 6px 0;
+  border-radius: 6px;
   font-size: 0.86rem;
   line-height: 1.5;
   color: #e2e8f0;
