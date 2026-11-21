@@ -34,6 +34,11 @@ import './instrument.css';
 
 type Mode = 'microphone' | 'simulation';
 type Receipt = { file?: VerifiedContent; text: string; source: string; time: string; id: number };
+function resampleSpeech(pcm: Float32Array, rate: number) {
+  const length = Math.floor(pcm.length * 16000 / rate), output = new Float32Array(length), step = rate / 16000;
+  for (let i = 0; i < length; i++) { const at = i * step, lo = Math.floor(at), mix = at - lo; output[i] = (pcm[lo] ?? 0) * (1 - mix) + (pcm[Math.min(lo + 1, pcm.length - 1)] ?? 0) * mix; }
+  return output;
+}
 type ColorTheme = 'system' | 'light' | 'dark';
 const themePreferenceKey = 'sonicbridge-color-theme';
 
@@ -100,6 +105,7 @@ function App() {
   const [ready, setReady] = useState(false), [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
   const [text, setText] = useState('');
+  const [speechStatus, setSpeechStatus] = useState('idle');
   const [notice, setNotice] = useState('Start audio to prepare the local modem.');
   const [, setLevel] = useState(0), [receipts, setReceipts] = useState<Receipt[]>([]);
   const [fixture, setFixture] = useState<{ pcm: Float32Array; sampleRate: number }>();
@@ -116,6 +122,10 @@ function App() {
   const [initialEta, setInitialEta] = useState<number>();
   const frame = useRef<SignalFrame | undefined>(undefined), lastPlot = useRef(-Infinity);
   const recording = useRef<{ pcm: Float32Array; rate: number; used: number } | undefined>(undefined);
+  const speechCapture = useRef<{ pcm: Float32Array; rate: number; used: number; resolve: (pcm: { pcm: Float32Array; rate: number }) => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> } | undefined>(undefined);
+  const speechWorker = useRef<Worker | undefined>(undefined);
+  const speechRequestId = useRef(0);
+  const speechPending = useRef<{ id: number; resolve: (text: string) => void; reject: (error: Error) => void } | undefined>(undefined);
   const [recordState, setRecordState] = useState<'off' | 'recording' | 'captured'>('off');
   function discardCapture() { recording.current = undefined; setRecordState('off'); }
   function sample(pcm: Float32Array, rate: number, source: string) {
@@ -182,6 +192,12 @@ function App() {
     const audio = link.current;
     audio.onCapture = (pcm, rate) => {
       sample(pcm, rate, 'Microphone');
+      const speech = speechCapture.current;
+      if (speech) {
+        const n = Math.min(pcm.length, speech.pcm.length - speech.used);
+        speech.pcm.set(pcm.subarray(0, n), speech.used); speech.used += n;
+        if (speech.used === speech.pcm.length) { speechCapture.current = undefined; clearTimeout(speech.timer); speech.resolve({ pcm: speech.pcm, rate: speech.rate }); }
+      }
       const rec = recording.current;
       if (!rec || rec.used === rec.pcm.length) return;
       const n = Math.min(pcm.length, rec.pcm.length - rec.used);
@@ -190,6 +206,7 @@ function App() {
     };
     audio.onDiagnostics = setDiagnostics; audio.onDevices = setDevices;
     audio.onInterrupted = reason => {
+      if (speechCapture.current) { clearTimeout(speechCapture.current.timer); speechCapture.current.reject(new Error(reason)); speechCapture.current = undefined; }
       discardCapture(); setReplying(false); frame.current = undefined; endMonitor();
       operationGeneration.current++; setBusy(''); setStats(undefined); setMeasurement(undefined);
       calibration.current?.dispose(); calibration.current = undefined; setArmed(false);
@@ -198,7 +215,7 @@ function App() {
       setCalibrationStatus('Audio interrupted. Start Audio, listen, and recalibrate after selecting your route.');
     };
     const unregister = registerOffline(setOffline, () => { calibration.current?.dispose(); transport.current?.dispose(); sendAbort.current?.abort(); audio.stop(); });
-    return () => { unregister(); audio.onCapture = undefined; recording.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
+    return () => { unregister(); audio.onCapture = undefined; recording.current = undefined; speechWorker.current?.terminate(); speechWorker.current = undefined; speechPending.current?.reject(new Error('Speech recognition stopped.')); speechPending.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
   }, []);
   function receive(message: string, source: string, file?: VerifiedContent) {
     setReceipts(items => [{ text: message, source, file, time: new Date().toLocaleTimeString(), id: Date.now() + Math.random() }, ...items].slice(0, 20));
@@ -210,6 +227,33 @@ function App() {
     const generation = operationGeneration.current;
     setBusy(label); setError('');
     try { await action(); } catch (e) { if (generation === operationGeneration.current) setError(describeError(e)); } finally { if (generation === operationGeneration.current) setBusy(''); }
+  }
+  async function dictateOffline() {
+    if (!ready) throw new Error('Start Audio first, then allow microphone access.');
+    if (!link.current.listening) await listen();
+    const rate = link.current.sampleRate;
+    if (!rate || rate < 16000) throw new Error('The active audio device sample rate is too low for speech recognition.');
+    setSpeechStatus('Recording 5 seconds…');
+    const captured = await new Promise<{ pcm: Float32Array; rate: number }>((resolve, reject) => {
+      const timer = setTimeout(() => { speechCapture.current = undefined; reject(new Error('Microphone capture timed out. Check the input device and try again.')); }, 12000);
+      speechCapture.current = { pcm: new Float32Array(rate * 5), rate, used: 0, resolve, reject, timer };
+    });
+    const pcm = resampleSpeech(captured.pcm, captured.rate), id = ++speechRequestId.current;
+    const worker = speechWorker.current ??= new Worker(new URL('./speech-worker.ts', import.meta.url), { type: 'module' });
+    setSpeechStatus('Transcribing on this device…');
+    return new Promise<void>((resolve, reject) => {
+      speechPending.current = { id, resolve: transcript => { setText(transcript); setSpeechStatus('Transcript ready. Edit it, then send.'); resolve(); }, reject };
+      worker.onmessage = ({ data }: MessageEvent<{ id: number; text?: string; error?: string; progress?: { status?: string; file?: string } }>) => {
+        if (data.id !== id) return;
+        if (data.progress) { setSpeechStatus(data.progress.file ? `Loading local model · ${data.progress.file}` : 'Loading local speech model…'); return; }
+        speechPending.current = undefined;
+        if (data.error) { worker.terminate(); speechWorker.current = undefined; setSpeechStatus('Local transcription failed.'); reject(new Error(data.error)); }
+        else if (data.text) { setText(data.text); setSpeechStatus('Transcript ready. Edit it, then send.'); resolve(); }
+        else { setSpeechStatus('No speech recognized. Try again.'); reject(new Error('No speech was recognized.')); }
+      };
+      worker.onerror = event => { speechPending.current = undefined; worker.terminate(); speechWorker.current = undefined; setSpeechStatus('Local transcription failed.'); reject(new Error(event.message || 'Local speech worker failed.')); };
+      worker.postMessage({ id, pcm }, [pcm.buffer]);
+    });
   }
   function prepareTransport() {
     transport.current ??= new StopAndWait(link.current, undefined, {
@@ -409,7 +453,10 @@ function App() {
       <SegmentedControlItem value="image">Image</SegmentedControlItem>
       <SegmentedControlItem value="file">Small file</SegmentedControlItem>
     </SegmentedControl>
-        {kind === 'text' ? <><label className="type-label-sm" htmlFor="message">What would you like to send?</label><Textarea id="message" rows={5} resizable placeholder="Type a message…" disabled={!!busy} maxLength={MAX_TRANSFER_BYTES} value={text} onChange={e => { setText(e.target.value); }} spellCheck={false}/></> :
+        {kind === 'text' ? <><label className="type-label-sm" htmlFor="message">What would you like to send?</label>
+          <div className="actions"><Button variant="secondary" disabled={!ready || !!busy || running} onClick={() => void run('Recording and transcribing locally…', dictateOffline)}>Speak to fill message</Button>
+            <span className="fine">{speechStatus === 'idle' ? 'Offline English model · first use loads about 42 MB from this app. Audio is processed on this device.' : speechStatus} Review or edit the transcript before sending.</span></div>
+          <Textarea id="message" rows={5} resizable placeholder="Type or dictate a message…" disabled={!!busy} maxLength={MAX_TRANSFER_BYTES} value={text} onChange={e => { setText(e.target.value); }} spellCheck={false}/></> :
           <><label className="type-label-sm" htmlFor="transfer-file">{kind === 'image' ? 'Select PNG or JPEG' : 'Select a small file'}</label>
           {/* eslint-disable-next-line sodium/no-native-control -- The native browser chooser reads local files without sending them over the network. */}
           <input id="transfer-file" key={kind} type="file" disabled={!!busy} accept={kind === 'image' ? 'image/png,image/jpeg' : undefined} onChange={e => { const selected = e.target.files?.[0]; e.target.value = ''; if (selected) void run('Reading local file…', () => choose(selected)); }}/>
