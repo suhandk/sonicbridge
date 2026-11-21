@@ -63,24 +63,34 @@ export class AudioLink implements PacketChannel {
     if (this.gain && this.context) this.gain.gain.setTargetAtTime(value, this.context.currentTime, 0.02);
   }
   async playBeaconChirp(freqStart = 1500, freqEnd = 2500, durationSec = 0.35, gainLevel = 1.0): Promise<void> {
-    if (!this.context || this.context.state !== 'running') return;
-    const ctx = this.context;
+    let ctx = this.context;
+    if (!ctx || ctx.state === 'closed') {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      ctx = new AudioCtx() as RoutableContext;
+      this.context = ctx;
+    }
+    if (ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch { /* ignore */ }
+    }
     const osc = ctx.createOscillator();
     const chirpGain = ctx.createGain();
+    const now = ctx.currentTime;
+    const targetGain = Math.min(1.0, Math.max(0.1, gainLevel));
 
-    chirpGain.gain.setValueAtTime(0.001, ctx.currentTime);
-    chirpGain.gain.exponentialRampToValueAtTime(Math.min(1.0, Math.max(0.05, gainLevel)), ctx.currentTime + 0.05);
-    chirpGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+    chirpGain.gain.setValueAtTime(0.001, now);
+    chirpGain.gain.linearRampToValueAtTime(targetGain, now + 0.04);
+    chirpGain.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(freqStart, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(freqEnd, ctx.currentTime + durationSec);
+    osc.frequency.setValueAtTime(Math.max(200, freqStart), now);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(200, freqEnd), now + durationSec);
 
     osc.connect(chirpGain);
     chirpGain.connect(this.gain || ctx.destination);
 
-    osc.start();
-    osc.stop(ctx.currentTime + durationSec);
+    osc.start(now);
+    osc.stop(now + durationSec);
 
     return new Promise(resolve => {
       osc.onended = () => {

@@ -28,6 +28,8 @@ export function AcousticRangeBeacon({
 }: AcousticRangeBeaconProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<RangeExpanderEngine | null>(null);
+  const lastPacketRef = useRef<PacketEvent | null>(null);
+
   const [state, setState] = useState<RangeExpanderState>({
     phase: 'idle',
     tier: 1,
@@ -35,9 +37,66 @@ export function AcousticRangeBeacon({
     estimatedDistanceMeters: RANGE_TIERS[1].distanceMeters,
     frequencyRange: RANGE_TIERS[1].freqRange,
     pulseRadius: 0,
-    statusMessage: 'Ready for emergency range search or auto-escalation.',
+    statusMessage: 'Ready: Transmit data to expand range on unconfirmed ACKs, or test speaker.',
     attemptCount: 0,
   });
+
+  // Reliable physical audio tone emitter (guaranteed speaker output via user gesture or active context)
+  const playPhysicalSound = async (
+    freqStart = 1500,
+    freqEnd = 2500,
+    durationSec = 0.35,
+    gainLevel = 1.0
+  ): Promise<void> => {
+    try {
+      if (audioLink) {
+        await audioLink.playBeaconChirp(freqStart, freqEnd, durationSec, gainLevel);
+        return;
+      }
+    } catch {
+      // Fallback to standalone AudioContext below
+    }
+
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        await ctx.resume().catch(() => {});
+      }
+      const osc = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      const now = ctx.currentTime;
+      const targetGain = Math.min(1.0, Math.max(0.1, gainLevel));
+
+      gainNode.gain.setValueAtTime(0.001, now);
+      gainNode.gain.linearRampToValueAtTime(targetGain, now + 0.04);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + durationSec);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(Math.max(200, freqStart), now);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(200, freqEnd), now + durationSec);
+
+      osc.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + durationSec);
+
+      await new Promise(resolve => {
+        osc.onended = () => {
+          try {
+            gainNode.disconnect();
+            osc.disconnect();
+            void ctx.close();
+          } catch { /* ignore */ }
+          resolve(undefined);
+        };
+      });
+    } catch (e) {
+      console.warn('Physical audio playback note:', e);
+    }
+  };
 
   // Initialize range expander engine
   useEffect(() => {
@@ -52,18 +111,12 @@ export function AcousticRangeBeacon({
         }
       },
       playAcousticPulse: async tierConfig => {
-        if (mode === 'microphone' && audioLink) {
-          try {
-            await audioLink.playBeaconChirp(
-              tierConfig.chirpFreqStart,
-              tierConfig.chirpFreqEnd,
-              0.4,
-              tierConfig.gain
-            );
-          } catch {
-            // Ignore if audio is suspended
-          }
-        }
+        await playPhysicalSound(
+          tierConfig.chirpFreqStart,
+          tierConfig.chirpFreqEnd,
+          0.38,
+          tierConfig.gain
+        );
       },
     });
 
@@ -73,15 +126,42 @@ export function AcousticRangeBeacon({
     };
   }, [audioLink, mode]);
 
-  // React to live acoustic session retries and completions
+  // React to unconfirmed transmission attempts from packet timeline
+  useEffect(() => {
+    if (!engineRef.current || !packets || packets.length === 0) return;
+    const latest = packets[packets.length - 1];
+    if (latest === lastPacketRef.current) return;
+    lastPacketRef.current = latest;
+
+    if (latest.direction === 'timeout') {
+      // Receiver did NOT send confirmation for this attempt!
+      const missCount = latest.attempt ?? 1;
+      engineRef.current.handleTransmissionTimeout(missCount);
+      const curState = engineRef.current.getState();
+      onAlert?.(`⚠️ Receiver did not send confirmation (Attempt ${missCount}): Escalated distance to ~${curState.estimatedDistanceMeters}m (${Math.round(curState.gain * 100)}% gain)`);
+
+      // Play physical penetration tone on unconfirmed timeout escalation
+      void playPhysicalSound(
+        RANGE_TIERS[curState.tier].chirpFreqStart,
+        RANGE_TIERS[curState.tier].chirpFreqEnd,
+        0.35,
+        curState.gain
+      );
+    } else if (latest.direction === 'decode') {
+      // Receiver SENT confirmation!
+      engineRef.current.handleReceiverDetected();
+    }
+  }, [packets, onAlert]);
+
+  // React to overall session lifecycle
   useEffect(() => {
     if (!engineRef.current || !session) return;
 
-    if (session.retries > 0 && active(session.phase)) {
-      engineRef.current.handleTransmissionTimeout(session.retries);
-      onAlert?.(`Acoustic range auto-expanding: Power Tier ${engineRef.current.getState().tier} (${session.retries} retries)`);
-    } else if (session.phase === 'completed' || session.phase === 'received') {
+    if (session.phase === 'completed' || session.phase === 'received') {
       engineRef.current.handleReceiverDetected();
+    } else if (session.phase === 'failed') {
+      engineRef.current.handleNoReceiverNearby();
+      onAlert?.('❌ NO RECEIVER NEARBY: Out of audible range (>120m). Receiver did not send confirmation.');
     }
   }, [session, onAlert]);
 
@@ -245,8 +325,13 @@ export function AcousticRangeBeacon({
 
   const handleStartBeacon = async () => {
     if (!engineRef.current) return;
-    onAlert?.('🚨 Initiating Acoustic Emergency Distance Escalation & Range Search...');
+    onAlert?.('📡 Transmitting acoustic range ping... Escalates to next distance ONLY if receiver confirmation is missing.');
     await engineRef.current.startEmergencySearch(mode === 'simulation');
+  };
+
+  const handleTestSound = async () => {
+    onAlert?.('🔊 Emitting physical acoustic test tone at 100% volume...');
+    await playPhysicalSound(880, 1760, 0.45, 1.0);
   };
 
   const handleStopBeacon = () => {
@@ -255,13 +340,13 @@ export function AcousticRangeBeacon({
   };
 
   const handleSimulatePeerFound = () => {
-    engineRef.current?.handleReceiverDetected(48);
-    onAlert?.('Simulated acoustic handshake: Receiver locked at ~48m!');
+    engineRef.current?.handleReceiverDetected(35);
+    onAlert?.('🎯 Simulated result: Receiver ACK confirmed & locked at ~35m!');
   };
 
   const handleSimulateNoPeer = () => {
     engineRef.current?.handleNoReceiverNearby();
-    onAlert?.('⚠️ Simulated result: No receiver nearby (>120m range exhausted).');
+    onAlert?.('⚠️ Simulated result: No receiver nearby (>120m range exhausted without confirmation).');
   };
 
   return (
@@ -269,7 +354,7 @@ export function AcousticRangeBeacon({
       <div className="card-heading">
         <div className="title-with-pill">
           <h2>Adaptive Distance & Acoustic Range Expander</h2>
-          <span className="mono badge-subtext">Emergency Forest Outreach</span>
+          <span className="mono badge-subtext">Unconfirmed ACK Escalation & Forest Outreach</span>
         </div>
         <span className={`phase-pill phase-${state.phase}`}>
           {state.phase === 'idle' && '⚪ STANDBY'}
@@ -281,7 +366,7 @@ export function AcousticRangeBeacon({
       </div>
 
       <p className="fine">
-        When receivers are separated by heavy forest foliage or distance, the transmitter automatically ramps frequency penetration and sound level to 100% full scale until an acoustic ACK is returned or reports no receiver nearby.
+        Adaptive Distance Escalation: While transmitting data, if the receiver does NOT return an acoustic confirmation (ACK), the transmitter increases distance range and sound power step-by-step up to 100% MAX power until confirmed. If still unconfirmed after exhausting maximum range, it reports no receiver nearby.
       </p>
 
       {/* Radar Display + Live Telemetry Grid */}
@@ -351,17 +436,27 @@ export function AcousticRangeBeacon({
             className="btn-range-action btn-danger"
             onClick={handleStopBeacon}
           >
-            ⏹️ Abort Range Search
+            ⏹️ Abort Range Ping
           </button>
         ) : (
           <button
             type="button"
             className="btn-range-action btn-primary"
             onClick={handleStartBeacon}
+            title="Sends acoustic discovery ping. Escalates to next distance ONLY if no confirmation returns."
           >
-            📡 Launch Range Expansion Beacon
+            📡 Ping Receiver (Expand on Missing ACK)
           </button>
         )}
+
+        <button
+          type="button"
+          className="btn-range-action btn-secondary"
+          onClick={handleTestSound}
+          title="Play physical test sound through device speakers"
+        >
+          🔊 Test Speaker Sound
+        </button>
 
         <button
           type="button"
@@ -376,9 +471,9 @@ export function AcousticRangeBeacon({
             type="button"
             className="btn-sim-action"
             onClick={handleSimulatePeerFound}
-            title="Simulate peer detected at ~48m"
+            title="Simulate peer detected at ~35m"
           >
-            🎯 Simulate Lock (~48m)
+            🎯 Simulate Lock (~35m)
           </button>
           <button
             type="button"

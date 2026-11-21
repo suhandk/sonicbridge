@@ -107,18 +107,23 @@ export class RangeExpanderEngine {
   }
 
   /**
-   * Automatically triggered when acoustic packet timeouts occur.
-   * Steps up volume and frequency penetration as distance increases.
+   * Triggered when the receiver does NOT send confirmation (ACK timeout during transmission).
+   * Distance and sound power escalate ONLY upon unconfirmed attempts.
    */
   handleTransmissionTimeout(missCount: number) {
     if (this.state.phase === 'found') return;
 
+    if (missCount >= 4) {
+      this.handleNoReceiverNearby();
+      return;
+    }
+
     let targetTier: RangeTier = 1;
-    if (missCount >= 5) {
+    if (missCount === 3) {
       targetTier = 4;
-    } else if (missCount >= 3) {
+    } else if (missCount === 2) {
       targetTier = 3;
-    } else if (missCount >= 1) {
+    } else if (missCount === 1) {
       targetTier = 2;
     }
 
@@ -134,14 +139,14 @@ export class RangeExpanderEngine {
       frequencyRange: tierConfig.freqRange,
       attemptCount: missCount,
       statusMessage: isMax
-        ? `⚠️ Maximum acoustic power reached (100% gain). Penetrating forest boundary.`
-        : `Receiver out of range. Expanding distance: ${tierConfig.distanceMeters}m (${Math.round(tierConfig.gain * 100)}% gain).`,
+        ? `⚠️ No receiver confirmation at 70m. Escalated to MAX LEVEL (~120m, 100% full scale, low-frequency forest resonance).`
+        : `⚠️ No receiver confirmation at ${RANGE_TIERS[(targetTier - 1) as RangeTier]?.distanceMeters ?? 15}m. Escalating distance: ~${tierConfig.distanceMeters}m (${Math.round(tierConfig.gain * 100)}% gain, ${tierConfig.freqRange}).`,
     });
   }
 
   /**
-   * Called when an ACK or peer reply arrives.
-   * Locks in the receiver and records confirmed distance.
+   * Called when an ACK or peer confirmation arrives.
+   * Locks in the receiver at the current distance and halts escalation.
    */
   handleReceiverDetected(confirmedDistance?: number) {
     this.stopBeaconLoop();
@@ -149,24 +154,24 @@ export class RangeExpanderEngine {
     this.update({
       phase: 'found',
       detectedAtDistance: distance,
-      statusMessage: `🎯 Receiver located & locked at ~${distance}m. Acoustic link established.`,
+      statusMessage: `🎯 Receiver located & locked at ~${distance}m! Acoustic confirmation (ACK) received.`,
     });
   }
 
   /**
-   * Called when all attempts and max power cycles have been exhausted with zero response.
+   * Called when all attempts and max power cycles have been exhausted with zero receiver confirmation.
    */
   handleNoReceiverNearby() {
     this.stopBeaconLoop();
     this.update({
       phase: 'no_receiver',
-      statusMessage: `❌ NO RECEIVER NEARBY: Out of audible range (>120m) or peer offline. All power tiers exhausted.`,
+      statusMessage: `❌ NO RECEIVER NEARBY: Out of audible range (>120m) or peer offline. Receiver did not send confirmation.`,
     });
   }
 
   /**
-   * Starts an automated progressive emergency beacon search loop.
-   * Useful when someone is lost in a forest or needs to find a peer.
+   * Sends acoustic discovery probe. Escalates to the next distance tier ONLY
+   * if the receiver does NOT return a confirmation within the listening window.
    */
   async startEmergencySearch(mockSimulation = false): Promise<void> {
     this.stop();
@@ -181,7 +186,7 @@ export class RangeExpanderEngine {
     }, 50);
 
     for (let t = 1; t <= 4; t++) {
-      if (abort.signal.aborted) break;
+      if (abort.signal.aborted || this.getState().phase === 'found') break;
 
       const tier = t as RangeTier;
       const tierConfig = RANGE_TIERS[tier];
@@ -196,8 +201,8 @@ export class RangeExpanderEngine {
         frequencyRange: tierConfig.freqRange,
         attemptCount: t,
         statusMessage: isMax
-          ? `Broadcasting MAX POWER acoustic search beacon (~${tierConfig.distanceMeters}m radius)...`
-          : `Pinging distance range ${tierConfig.distanceMeters}m at ${Math.round(tierConfig.gain * 100)}% volume...`,
+          ? `Broadcasting MAX POWER acoustic search beacon (~${tierConfig.distanceMeters}m radius)... Waiting for confirmation.`
+          : `Pinging distance range ${tierConfig.distanceMeters}m at ${Math.round(tierConfig.gain * 100)}% volume... Waiting for confirmation.`,
       });
 
       // Play acoustic chirp / beacon pulse
@@ -209,27 +214,13 @@ export class RangeExpanderEngine {
         // Audio playback error or interrupted
       }
 
-      // In simulation mode, simulate a pause to listen for replies
-      const delayMs = mockSimulation ? 600 : 2500;
+      // Wait for receiver confirmation window before escalating
+      const delayMs = mockSimulation ? 500 : 2200;
       await new Promise(resolve => setTimeout(resolve, delayMs));
-      if (abort.signal.aborted) break;
+      if (abort.signal.aborted || this.getState().phase === 'found') break;
     }
 
-    // Ping at max power for remaining maxCycles
-    while (!abort.signal.aborted && this.maxPowerCycleCount < this.maxCycles) {
-      this.maxPowerCycleCount++;
-      this.update({
-        phase: 'max_power',
-        tier: 4,
-        statusMessage: `Max power broadcast wave ${this.maxPowerCycleCount}/${this.maxCycles}. Listening for acoustic turnaround...`,
-      });
-
-      const delayMs = mockSimulation ? 600 : 3000;
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-      if (abort.signal.aborted) break;
-    }
-
-    if (!abort.signal.aborted && this.state.phase !== 'found') {
+    if (!abort.signal.aborted && this.getState().phase !== 'found') {
       this.handleNoReceiverNearby();
     }
   }

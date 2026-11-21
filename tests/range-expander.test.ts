@@ -25,13 +25,13 @@ describe('Acoustic Range Expander & Emergency Search Beacon', () => {
     expect(expander.getState().estimatedDistanceMeters).toBe(35);
     expect(gainUpdates).toContain(0.75);
 
-    // 3 timeouts: escalates to Tier 3 (70m, 90% gain)
-    expander.handleTransmissionTimeout(3);
+    // 2 timeouts: escalates to Tier 3 (70m, 90% gain)
+    expander.handleTransmissionTimeout(2);
     expect(expander.getState().tier).toBe(3);
     expect(expander.getState().estimatedDistanceMeters).toBe(70);
 
-    // 5 timeouts: escalates to Tier 4 (120m, 100% MAX power)
-    expander.handleTransmissionTimeout(5);
+    // 3 timeouts: escalates to Tier 4 (120m, 100% MAX power)
+    expander.handleTransmissionTimeout(3);
     expect(expander.getState().tier).toBe(4);
     expect(expander.getState().phase).toBe('max_power');
     expect(expander.getState().gain).toBe(1.0);
@@ -40,7 +40,7 @@ describe('Acoustic Range Expander & Emergency Search Beacon', () => {
 
   it('locks in receiver when acoustic response is detected', () => {
     const expander = new RangeExpanderEngine();
-    expander.handleTransmissionTimeout(2);
+    expander.handleTransmissionTimeout(1);
     expect(expander.getState().tier).toBe(2);
 
     // Receiver responds at ~35m
@@ -53,7 +53,7 @@ describe('Acoustic Range Expander & Emergency Search Beacon', () => {
 
   it('reports "NO RECEIVER NEARBY" when all distance tiers are exhausted without response', () => {
     const expander = new RangeExpanderEngine();
-    expander.handleTransmissionTimeout(5);
+    expander.handleTransmissionTimeout(3);
     expect(expander.getState().phase).toBe('max_power');
 
     expander.handleNoReceiverNearby();
