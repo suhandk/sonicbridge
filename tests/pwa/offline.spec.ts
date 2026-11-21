@@ -20,7 +20,12 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(inventory.assets).toContain('./vendor/ggwave.js');
   expect(inventory.assets).toContain('./capture-worklet.js');
   expect(inventory.assets.some(path => path.endsWith('.css'))).toBe(true);
-  expect(inventory.assets.filter(path => path.includes('/lunar/') && path.endsWith('.webp'))).toHaveLength(6);
+  expect(inventory.assets).toEqual(expect.arrayContaining([
+    './lunar/earth-clouds.webp', './lunar/earth.webp',
+    './lunar/relief-1024.webp', './lunar/relief-512.webp',
+    './lunar/surface-1024.webp', './lunar/surface-512.webp',
+    './lunar/relay-desktop.webp', './lunar/relay-mobile.webp',
+  ]));
   expect(inventory.assets.some(path => path.endsWith('.woff2'))).toBe(true);
   const sceneChunk = inventory.assets.find(path => /moon-relay-.*\.js$/.test(path));
   expect(sceneChunk).toBeTruthy();
@@ -29,6 +34,10 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(offlineNavigation?.fromServiceWorker()).toBe(true);
   await expect.poll(() => page.evaluate(path => performance.getEntriesByName(new URL(path, location.href).href).length, sceneChunk!)).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Data, carried by sound.');
+  await page.getByLabel('Visual effects').selectOption('Off');
+  await expect.poll(() => page.locator('.relay-sky img').evaluate(img =>
+    img instanceof HTMLImageElement && img.naturalWidth > 0
+  )).toBe(true);
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
   await page.getByRole('button', {name:'↙ Receive'}).click();
@@ -43,6 +52,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByLabel('Operating mode').selectOption('Robust');
   await page.getByLabel('What would you like to send?').fill('Offline नमस्ते 🌉');
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await page.getByRole('dialog', { name: 'Simulation complete' }).getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('.inbox article').first()).toContainText('Offline नमस्ते 🌉');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Delivery confirmed');
   await page.getByText('Packet timeline').click();
@@ -67,6 +77,15 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByRole('button', { name: 'Use original' }).click();
   await expect(page.getByText('1 × 1 px · Original bytes')).toBeVisible();
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  const imageConfirmation = page.getByRole('dialog', { name: 'Simulation complete' });
+  await expect(imageConfirmation).toContainText('Run time');
+  await expect(imageConfirmation.locator('time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/);
+  await imageConfirmation.getByRole('button', { name: 'Preview image' }).click();
+  await expect.poll(() => imageConfirmation.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
+  const popupDownload = page.waitForEvent('download');
+  await imageConfirmation.getByRole('button', { name: 'Download as .bin' }).click();
+  expect(await readFile((await (await popupDownload).path())!)).toEqual(png);
+  await imageConfirmation.getByRole('button', { name: 'Done' }).click();
   const receipt = page.locator('.inbox article').first();
   await expect(receipt).toContainText('橋.png');
   await receipt.getByRole('button', { name: 'Preview image' }).click();
@@ -93,6 +112,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByRole('button', { name: /Make 1/ }).click();
   await expect(page.getByText(/Within target of 1024/)).toBeVisible();
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await page.getByRole('dialog', { name: 'Simulation complete' }).getByRole('button', { name: 'Done' }).click();
   await expect(receipt).toContainText('large-thumb.jpg', { timeout: 20000 });
   await receipt.getByRole('button', { name: 'Preview image' }).click();
   await expect.poll(() => receipt.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
@@ -101,6 +121,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const binary = Buffer.concat([Buffer.from('<script>throw Error("execution")</script>'), Buffer.from([0,255,128])]);
   await page.getByLabel('Select a small file').setInputFiles({ name: 'sample.html', mimeType: 'text/html', buffer: binary });
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await page.getByRole('dialog', { name: 'Simulation complete' }).getByRole('button', { name: 'Done' }).click();
   await expect(receipt).toContainText('sample.html');
   await expect(receipt.locator('img, iframe, script, object')).toHaveCount(0);
   await expect(page.getByText(binary.length + ' / ' + binary.length + ' unique content bytes acknowledged')).toBeVisible();
@@ -111,9 +132,11 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const message = page.getByLabel('What would you like to send?');
   await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: null }));
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await page.getByRole('dialog', { name: 'Simulation complete' }).getByRole('button', { name: 'Done' }).click();
   await expect(receipt).toContainText('STRUCTURED DATA');
   await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: { title: 'Unsigned incident' } }));
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await page.getByRole('dialog', { name: 'Simulation complete' }).getByRole('button', { name: 'Done' }).click();
   await expect(receipt).toContainText('Unsigned incident');
   await expect(receipt).toContainText('Sender details from received text');
   expect(errors).toEqual([]); expect(badResponses).toEqual([]);
