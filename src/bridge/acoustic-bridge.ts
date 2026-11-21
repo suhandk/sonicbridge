@@ -121,12 +121,19 @@ export class AcousticBridge {
     const verification = await verifyEnvelope(envelope);
     const isTrustedSender = defaultTrustRegistry.isTrusted(envelope.originDeviceId);
 
-    // 2. Replay check
-    const replayCheck = defaultReplayProtector.checkAndRecord(
-      envelope.messageId,
-      envelope.originDeviceId,
-      envelope.nonce
-    );
+    // 2. Replay check (only record into stateful cache if signature is valid)
+    let isReplay = false;
+    let replayReason: string | undefined;
+
+    if (verification.valid) {
+      const replayCheck = defaultReplayProtector.checkAndRecord(
+        envelope.messageId,
+        envelope.originDeviceId,
+        envelope.nonce
+      );
+      isReplay = replayCheck.isReplay;
+      replayReason = replayCheck.reason;
+    }
 
     let status: TransferStatus = 'APPLICATION_ACCEPTED';
     let statusDetail = 'Verified and accepted.';
@@ -139,12 +146,12 @@ export class AcousticBridge {
         reason: verification.reason,
         detail: verification.detail,
       });
-    } else if (replayCheck.isReplay) {
+    } else if (isReplay) {
       status = 'REJECTED';
-      statusDetail = `Security failure: ${replayCheck.reason}`;
+      statusDetail = `Security failure: ${replayReason}`;
       await defaultAuditLedger.logEvent('REPLAY_REJECTED', {
         messageId: envelope.messageId,
-        reason: replayCheck.reason,
+        reason: replayReason,
       });
     } else {
       await defaultAuditLedger.logEvent('MESSAGE_RECEIVED', {
@@ -164,7 +171,7 @@ export class AcousticBridge {
     await defaultDb.saveIncoming(storedMsg);
 
     // If valid, consider relaying
-    if (verification.valid && !replayCheck.isReplay) {
+    if (verification.valid && !isReplay) {
       const relayDecision = defaultRelayEngine.canRelay(envelope);
       if (relayDecision.allowed) {
         await defaultRelayEngine.queueForRelay(envelope);
@@ -178,10 +185,10 @@ export class AcousticBridge {
     const event: EnvelopeReceiveEvent = {
       envelope,
       verification,
-      isReplay: replayCheck.isReplay,
+      isReplay,
       isTrustedSender,
       senderFingerprint: verification.valid ? verification.senderFingerprint : undefined,
-      error: !verification.valid ? verification.detail : replayCheck.isReplay ? replayCheck.reason : undefined,
+      error: !verification.valid ? verification.detail : isReplay ? replayReason : undefined,
     };
 
     this.onMessageReceived?.(event);

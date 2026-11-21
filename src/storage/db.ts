@@ -196,7 +196,12 @@ export class SonicDB {
   async addAudit(entry: AuditEntry): Promise<void> {
     const db = await this.getDB();
     if (!db) {
-      this.memAudit.push(entry);
+      const existingIdx = this.memAudit.findIndex(e => e.index === entry.index);
+      if (existingIdx >= 0) {
+        this.memAudit[existingIdx] = entry;
+      } else {
+        this.memAudit.push(entry);
+      }
       return;
     }
     return new Promise((resolve, reject) => {
