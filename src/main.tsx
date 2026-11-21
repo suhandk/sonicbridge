@@ -15,7 +15,9 @@ import { SignalView, type SignalFrame } from './signal-view';
 import { active, duration, SessionMonitor, type Session, type Progress } from './session-monitor';
 import { simulateTransfer } from './simulation';
 import { readWav, writeWav } from './wav';
+import '@fontsource/ibm-plex-mono/latin-400.css';
 import './style.css';
+import './instrument.css';
 
 type Mode = 'microphone' | 'simulation';
 type Receipt = { file?: VerifiedContent; text: string; source: string; time: string; id: number };
@@ -25,6 +27,10 @@ function App() {
   const transport = useRef<StopAndWait | undefined>(undefined);
   const sendAbort = useRef<AbortController | undefined>(undefined);
   const calibration = useRef<Calibration | undefined>(undefined);
+  const [role, setRole] = useState<'send' | 'receive'>('send');
+  const [engagement, setEngagement] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [awaitingReply, setAwaitingReply] = useState(false);
   const operationGeneration = useRef(0);
   const [calibrationStatus, setCalibrationStatus] = useState('On the other device, arm the calibration receiver first. Then calibrate from this device.');
   const [armed, setArmed] = useState(false);
@@ -59,7 +65,7 @@ function App() {
   function discardCapture() { recording.current = undefined; setRecordState('off'); }
   function sample(pcm: Float32Array, rate: number, source: string) {
     const time = performance.now();
-    if (source === 'MIC INPUT' && time - lastPlot.current < 250) return;
+    if (source === 'Microphone' && (link.current.playbackSeconds !== undefined || time - lastPlot.current < 250)) return;
     lastPlot.current = time;
     const offset = Math.max(0, Math.floor((pcm.length - 2048) / 2));
     frame.current = { pcm: pcm.slice(offset, offset + 2048), rate, source };
@@ -87,6 +93,7 @@ function App() {
       if (phase === 'failed') setError(detail);
     },
     packet(event) {
+      if (event.direction !== 'submit') setAwaitingReply(false);
       setPackets(old => [...old.slice(-39), event]);
       setSession(old => old && active(old.phase) ? { ...old, last: event.at,
         retries: old.retries + Number(event.direction === 'submit' && (event.attempt ?? 1) > 1) } : old);
@@ -116,7 +123,7 @@ function App() {
   useEffect(() => {
     const audio = link.current;
     audio.onCapture = (pcm, rate) => {
-      sample(pcm, rate, 'MIC INPUT');
+      sample(pcm, rate, 'Microphone');
       const rec = recording.current;
       if (!rec || rec.used === rec.pcm.length) return;
       const n = Math.min(pcm.length, rec.pcm.length - rec.used);
@@ -163,7 +170,11 @@ function App() {
   }
   async function start() {
     await link.current.start();
-    link.current.onWaveform = (pcm, rate) => outgoing(pcm, rate, 'MODEM OUTPUT');
+    link.current.onWaveform = (pcm, rate) => {
+      setPlaying(true); setAwaitingReply(false); setFixture({ pcm, sampleRate: rate });
+      frame.current = { pcm, rate, source: 'Speaker playback', position: () => link.current.playbackSeconds };
+    };
+    link.current.onPlaybackEnd = () => { setPlaying(false); setAwaitingReply(true); frame.current = undefined; };
     prepareTransport(); setReady(true); setNotice(`Audio ready · ${link.current.sampleRate} Hz · v1 baseline audible fast · ${MAX_PAYLOAD}-byte DATA payload`);
   }
   function stopListening() {
@@ -178,10 +189,14 @@ function App() {
     setListening(true);
   }
   function switchMode(next: Mode) {
+    if (next === mode) return;
+    setRole('send');
     stopListening(); setSession(undefined); setPackets([]); setProgress(undefined); setInitialEta(undefined); setFixture(undefined); setStats(undefined); setMeasurement(undefined); setMode(next); setError('');
     setNotice(next === 'simulation' ? 'Simulation exchanges binary packets through real generated PCM. No microphone, speaker, or network is used.' : 'Both peers must listen for acoustic capabilities and ACKs. Received text appears only after verified FIN completion.');
   }
   async function send() {
+    if (sendAbort.current) return;
+    setEngagement(value => value + 1); setAwaitingReply(false);
     const body = packContent(kind, name, kind === 'text' ? new TextEncoder().encode(text) : draft!.bytes);
     setInitialEta(seconds);
     let negotiated = MAX_PAYLOAD;
@@ -201,7 +216,7 @@ function App() {
         if (count) setMeasurement({ goodput: count / elapsed, chunk: negotiated, elapsed, modelSeconds: estimateTransfer(body.length, negotiated, robustEstimate).seconds });
       } else {
         setPackets([]); setSession(undefined); setNotice('Awaiting verified PCM delivery.');
-        await simulateTransfer(body, { monitor: monitorEvents, mode: operating, controller: setStats, sendOptions: options, content: item => receive(item.text ?? item.name, 'SIMULATION / PCM / VERIFIED · SHA-256', item), signal: abort.signal, waveform: (pcm, rate) => outgoing(pcm, rate, 'SIMULATED OUTPUT') });
+        await simulateTransfer(body, { monitor: monitorEvents, mode: operating, controller: setStats, sendOptions: options, content: item => receive(item.text ?? item.name, 'SIMULATION / PCM / VERIFIED · SHA-256', item), signal: abort.signal, waveform: (pcm, rate) => outgoing(pcm, rate, 'Simulation PCM') });
         setNotice('Simulated transfer confirmed by FIN_ACK through the real WASM/PCM codec. Physical-device testing pending.');
       }
     } finally { if (sendAbort.current === abort) sendAbort.current = undefined; }
@@ -223,18 +238,23 @@ function App() {
     const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function cancelTransfer() {
+    calibration.current?.cancel();
+    transport.current?.cancel();
+    sendAbort.current?.abort(new Error('Transfer cancelled.'));
+  }
   const running = active(session?.phase);
   const physical = mode === 'microphone';
   const hint = /timed out|timeout/i.test(error) ? 'Check that the other device is listening. Enable both microphones, turn up the receiving device’s speaker for replies, and retry.' : '';
   return <main>
     <a className="skip" href="#workspace">Skip to transfer controls</a>
-    <header className="mast"><a className="brand" href="." aria-label="SONICBRIDGE home"><img src="./icons/icon-192.png" width="38" height="38" alt=""/>SONICBRIDGE</a><span>SW–41 <b>/</b> Acoustic data link</span></header>
-    <div className="heading"><div><h1>Transfer console</h1><p>Send text, images, and small files through sound.</p></div>
+    <header className="mast"><a className="brand" href="." aria-label="SONICBRIDGE home"><span className="brand-mark" aria-hidden="true">∿</span>SONICBRIDGE</a><span>SW–41 <b>/</b> Acoustic data link</span></header>
+    <div className="heading"><div><h1>Connect through <em>sound.</em></h1><p>Open SONICBRIDGE on both devices and allow microphone access so they can exchange messages and acknowledgements.</p></div>
     <div className="tabs" aria-label="Transport mode"><button aria-pressed={physical} disabled={!!busy || running} onClick={() => switchMode('microphone')}>Physical Audio</button><button aria-pressed={!physical} disabled={!!busy || running} onClick={() => switchMode('simulation')}>Simulation · local PCM</button></div></div>
-    <div className="overview">
+    <div className="console-grid" id="workspace" tabIndex={-1}><div className="task-column">
     <section className="card setup"><div className="card-heading"><h2>{physical ? 'Audio setup' : 'Local simulation'}</h2><span className={'pill '+(ready ? 'green' : '')}>{listening ? 'Mic open' : ready ? 'Audio ready' : 'Audio off'}</span></div>
-    <p>{physical ? 'Start audio on both devices. Check the microphone and speaker, then listen on the receiving device.' : 'Run both endpoints here using generated PCM and a virtual clock. Your microphone and speaker are unused.'}</p>
-    <div className="actions"><button className="primary" disabled={!!busy || running} onClick={() => run('Starting audio…', start)}>{ready ? 'Resume Audio' : 'Start Audio'}</button>
+    <p>{physical ? 'On the sending laptop choose Send. On the other laptop choose Receive, then Listen with microphone.' : 'Run both endpoints here using generated PCM and a virtual clock. Your microphone and speaker are unused.'}</p>
+    <div className="actions"><button className={ready ? undefined : "primary"} disabled={!!busy || running} onClick={() => run('Starting audio…', start)}>{ready ? 'Resume Audio' : 'Start Audio'}</button>
     {ready && <button onClick={() => { stopListening(); sendAbort.current?.abort(); link.current.stop(); setReady(false); setNotice('Audio stopped. Microphone released.'); }}>Stop Audio</button>}</div>
     {physical && <details className="route"><summary>Check devices</summary>      <div className="device-controls">
         <label>Microphone<select aria-label="Microphone device" disabled={listening || !!busy} value={inputDevice} onChange={e => { setInputDevice(e.target.value); link.current.inputDeviceId = e.target.value; }}><option value="">Browser default microphone</option>{devices.filter(d => d.kind === 'audioinput' && d.deviceId).map((d, i) => <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>)}</select></label>
@@ -243,12 +263,10 @@ function App() {
         <button disabled={!!busy} onClick={() => run('Listing devices…', async () => { await link.current.refreshDevices(); })}>Refresh devices</button>
       </div>
 <p className="fine">Device labels may require microphone permission. Use the OS speaker picker when output selection is unavailable.</p></details>}
-    {ready && <nav className="jump" aria-label="Transfer actions"><a href="#send">Send ↓</a><a href="#receive">Receive ↓</a><a href="#monitor">Monitor ↓</a></nav>}
     </section>
-    <SignalView key={mode} frame={frame}/>
-    </div>
-    <div className="workspace" id="workspace" tabIndex={-1}>
-    <section className="card send-panel" id="send" tabIndex={-1}><div className="card-heading"><h2>Send</h2><span className="mono">TX</span></div>
+    <section className="card composer" data-engaging={!!sendAbort.current && !error} aria-label="Transfer controls">
+    <div className="role-tabs" role="group" aria-label="Transfer direction"><button disabled={!!busy || running} aria-pressed={role==='send'} onClick={()=>setRole('send')}>↗ Send</button><button disabled={!!busy || running} aria-pressed={role==='receive'} onClick={()=>setRole('receive')}>↙ Receive</button></div>
+    <div className="send-panel" id="send" hidden={role!=='send'}>
     <div className="kind-tabs" role="group" aria-label="Transfer type">{(['text','image','file'] as const).map(k => <button key={k} disabled={!!busy || running} aria-pressed={k === kind} onClick={() => { resetDraft(); setError(''); setKind(k); }}>{k === 'text' ? 'Text' : k === 'image' ? 'Image' : 'Small file'}</button>)}</div>
         {kind === 'text' ? <><label htmlFor="message">What would you like to send?</label><textarea id="message" placeholder="Type a message…" disabled={!!busy} maxLength={MAX_TRANSFER_BYTES} value={text} onChange={e => { setText(e.target.value); }} spellCheck={false}/></> :
           <><label>{kind === 'image' ? 'Select PNG or JPEG' : 'Select a small file'}<input key={kind} type="file" disabled={!!busy} accept={kind === 'image' ? 'image/png,image/jpeg' : undefined} onChange={e => { const selected = e.target.files?.[0]; e.target.value = ''; if (selected) void run('Reading local file…', () => choose(selected)); }}/></label>
@@ -258,23 +276,32 @@ function App() {
             {image.thumbnail && <><p>{count >= 1024 && count <= 3072 ? 'Within' : count < 1024 ? 'Below' : 'Above'} target of 1024–3072 bytes · actual {count} bytes</p><button disabled={!!busy} onClick={() => { setImage(original); }}>Use original</button></>}</>}</>}
 
     <p className={count > capacity ? 'invalid' : 'fine'}>{count.toLocaleString()} / {capacity.toLocaleString()} content bytes{count > capacity && ' · exceeds transfer limit'}</p>
-    <div className="actions"><button className="send-button primary" disabled={!ready || !valid || !!busy || running || replying} onClick={() => run(physical ? 'Acoustic transfer…' : 'PCM protocol simulation…', send)}>{physical ? 'Send through speaker' : 'Run PCM simulation'} ↗</button>
-    {(busy || running) && <button onClick={() => { calibration.current?.cancel(); transport.current?.cancel(); sendAbort.current?.abort(new Error('Transfer cancelled.')); }}>Cancel transfer</button>}</div>
+    <div className="actions"><button className="send-button primary" title={!ready ? 'Start Audio first' : !valid ? 'Choose content within the size limit' : replying ? 'Returning an acoustic reply' : undefined} disabled={!ready || !valid || !!busy || running || replying} onClick={() => { if (!sendAbort.current) void run(physical ? 'Acoustic transfer…' : 'PCM protocol simulation…', send); }}>{physical ? 'Start transmission' : 'Run PCM simulation'} ↗</button>
+    {(sendAbort.current || running) && <button onClick={cancelTransfer}>Cancel transfer</button>}</div>
     {valid && <p className="fine">~{duration(seconds)} estimated · {estimate.count} DATA chunks · {measured ? 'scaled from previous transfer' : 'modeled without retries'}.</p>}
-    </section>
-    <section className="card receive-panel" id="receive" tabIndex={-1}><div className="card-heading"><h2>Receive</h2><span className="mono">RX</span></div>
-    <h3><i className={'lamp '+(physical && listening ? 'on':'')}/>{!physical ? 'Simulated receiver' : !listening ? 'Receiver offline' : replying ? 'Returning acoustic reply' : running ? 'Link in use' : 'Receiver ready'}</h3>
+    </div>
+    <div className="receive-panel" id="receive" hidden={role!=='receive'}><div className="card-heading"><h2>Receive</h2><span className="mono">RX</span></div>
+    <h3><i className={'lamp '+(physical && listening ? 'on':'')}/>{!physical ? 'Simulated receiver' : !listening ? 'Receiver offline' : replying ? 'Returning acoustic reply' : running ? 'Link in use' : 'Listening for a nearby sender'}</h3>
     <p>{physical ? 'Keep this page open. The microphone listens for data and the speaker returns acknowledgements.' : 'The local receiver verifies the reconstructed payload before displaying it below.'}</p>
-    {mode === 'microphone' && <button disabled={!ready || !!busy || running} onClick={() => {
+    {mode === 'microphone' && <button className={listening ? undefined : "primary"} disabled={!ready || !!busy || running} onClick={() => {
         if (listening) { stopListening(); return; }
         void run('Requesting microphone…', async () => { await listen(); setNotice('Listening for v1 acoustic packets. Control replies use the same audible baseline.'); });
       }}>{listening ? 'Stop listening' : 'Listen with microphone'}</button>}
+    {running && <button onClick={cancelTransfer}>Cancel transfer</button>}
     <p className="input-diagnostic">{physical && listening ? signalDescription(diagnostics.signal) : ''}</p>
+    </div>
+    {!ready && <p className="fine">Start Audio to enable transfer controls.</p>}
     </section>
+    {busy && <p className="action-state">{busy}</p>}
+    {error && <div className="error" role="alert"><strong>Link needs attention</strong><p>{error} {hint}</p></div>}
+    </div>
+    <SignalView key={mode} frame={frame} engagement={engagement} engaging={!!sendAbort.current && !error} live={playing || listening || !!sendAbort.current} receiving={role==='receive'} verified={!busy && !error && (session?.phase==='completed' || session?.phase==='received')} caption={playing ? 'Speaker playback' : awaitingReply && running && !session?.receive ? 'Waiting for acknowledgement' : listening ? 'Microphone open' : physical ? 'Physical Audio' : 'Simulation PCM'} />
+    </div>
+    <div className="workspace">
     <SessionMonitor session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta}/>
     <section className="card results"><div className="card-heading"><h2>Results</h2><span className="mono">{receipts.length} entries</span></div><div className="inbox" aria-live="polite">{receipts.length ? receipts.map(item => <article key={item.id}><div><span>{item.source}</span><time>{item.time}</time></div> {item.file && item.file.kind !== 'text' ? <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)}/> : <p>{item.text}</p>}</article>) : <div className="empty"><strong>No results yet</strong><p>{mode === 'microphone' ? 'Verified microphone transfers appear here.' : 'Run a simulation to decode generated audio.'}</p></div>}</div></section></div>
     {running && session && session.retries >= 2 && <p className="error">Repeated missing replies. Check that the peer is listening and that its speaker can reach this microphone.</p>}
-    <div className="feedback" role="status">{busy ? busy+' ' : ''}{notice}</div>{error && <div className="error" role="alert"><strong>Link needs attention</strong><p>{error} {hint}</p></div>}
+    <div className="feedback" role="status">{busy ? busy+' ' : ''}{notice}</div>
     <details className="tech"><summary>Technical details <span>Controller, calibration & diagnostics</span></summary><div className="tech-body">
           <section className="controller-panel" aria-label="Link controller">
         <label>Operating mode <select value={operating} disabled={!!busy} onChange={e => {

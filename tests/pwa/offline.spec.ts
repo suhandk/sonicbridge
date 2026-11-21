@@ -23,9 +23,10 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await context.setOffline(true);
   const offlineNavigation = await page.reload();
   expect(offlineNavigation?.fromServiceWorker()).toBe(true);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Transfer console');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Connect through sound');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
+  await page.getByRole('button', {name:'↙ Receive'}).click();
   await page.getByRole('button', { name: 'Listen with microphone' }).click();
   await expect(page.getByRole('button', { name: 'Stop listening' })).toBeEnabled();
   await page.locator('summary').filter({ hasText: 'Technical details' }).click();
