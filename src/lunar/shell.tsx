@@ -1,5 +1,4 @@
 import type { PropsWithChildren } from 'react';
-import { CRC_BYTES, Kind, MAX_PAYLOAD, MAX_TRANSFER_BYTES } from '../protocol';
 
 export function Action({ children, href, primary, onClick }: PropsWithChildren<{href:string;primary?:boolean;onClick?:()=>void}>) {
   return <a className={'lunar-action'+(primary?' solid':'')} href={href} onClick={onClick}>{children}</a>;
@@ -19,10 +18,8 @@ export function Hero({open,listening,ready,physical}:{open:()=>void;listening:bo
   </div></section>;
 }
 export function Guide() {
-  const specs=[[MAX_PAYLOAD+' B','Maximum DATA payload'],[MAX_TRANSFER_BYTES.toLocaleString('en-US')+' B','Transfer limit, including manifest and filename'],['CRC'+CRC_BYTES*8,'Integrity check on every packet'],[Kind[Kind.FIN_ACK],'Required for sender confirmation']];
   return <div className="guide-surface"><div className="lunar-wrap">
-    <dl className="relay-specs">{specs.map(([value,label])=><div key={value}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-    <section id="how" className="relay-steps"><h2>How a transfer works</h2><ol>{[
+    <section id="how" className="relay-steps" aria-labelledby="transfer-guide-title"><h2 id="transfer-guide-title">How a transfer works</h2><ol>{[
       ['Listen','Start audio on both devices. On the receiver, open the microphone and keep the page visible.'],
       ['Send','Choose a message or file on the sender. Its speaker plays each packet and listens for the reply.'],
       ['Verify','The receiver checks the reconstructed data. The sender waits for the final acknowledgement.']

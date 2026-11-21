@@ -98,7 +98,7 @@ test(`real AudioWorklet and worker decode WAV-fed microphone at ${graphRate} Hz`
   await expect(page.locator('.inbox article').first()).toContainText(message);
   await expect(page.locator('.inbox article').first()).toContainText('MICROPHONE / VERIFIED');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Verified at receiver');
-  await expect(page.locator('.scope canvas')).toBeVisible();
+  await expect(page.locator('.scope .plot canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Stop listening' }).click();
   await expect(page.getByRole('button', { name: 'Listen with microphone' })).toBeEnabled();
   expect(errors).toEqual([]);

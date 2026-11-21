@@ -2,7 +2,7 @@ import * as T from 'three';
 import { Kind } from '../protocol';
 import type { PacketEvent } from '../transport';
 
-export type VisualState = { listening:boolean; transferring:boolean; failed:boolean; reduced:boolean };
+export type VisualState = { listening:boolean; transferring:boolean; failed:boolean };
 export interface RelayScene { update(state:VisualState, packets:PacketEvent[]):void; setPreview(target: HTMLDivElement | null): void; dispose():void }
 
 function haloTexture() {
@@ -249,8 +249,6 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const mouse={x:0,y:0};
   const gl=renderer.getContext(),ext=gl.getExtension('WEBGL_debug_renderer_info');
   const software=ext && /swiftshader|llvmpipe|software/i.test(String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)));
-  let settle = 0;
-  const staticFrame = () => state.reduced;
   const hero = document.querySelector<HTMLElement>('.relay-hero');
   let consolePreview: HTMLDivElement | null = null;
   let viewport: HTMLElement = host;
@@ -274,12 +272,13 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   }
   function draw(){
     timer=0;if(!alive||!loaded||document.hidden||!visible)return;
-    const now=performance.now(),still=staticFrame(),dt=Math.min((now-last)/1000,.1);last=now;
-    if(!still) rotation+=dt;
+    const now = performance.now();
+    rotation += Math.min((now - last) / 1000, .1);
+    last = now;
     moon.rotation.y=-1.46+Math.sin(rotation*.38)*.085;stars.rotation.z=rotation*.003;
     const scroll=Math.min(1,window.scrollY/Math.max(innerHeight,1));
     camera.zoom=viewport === consolePreview ? 1 : 1+scroll*.11;camera.updateProjectionMatrix();
-    world.position.set(still?0:mouse.x*.24+.075*Math.sin(rotation*.45),still?0:mouse.y*.14+.035*Math.sin(rotation*.32),0);
+    world.position.set(mouse.x*.24+.075*Math.sin(rotation*.45),mouse.y*.14+.035*Math.sin(rotation*.32),0);
     // Screen-space projection of the shared solar orbit, with compressed scale and timing.
     const solarPhase = rotation * .19;
     solarOffset.set(Math.sin(solarPhase) * (mobile ? .125 : .22), (Math.cos(solarPhase) - 1) * .09, 0);
@@ -325,9 +324,9 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
       const show = t >= 0 && t < 1;
       p.dot.visible = show && clearPath;
       beam.visible ||= p.dot.visible;
-      if (p.dot.visible) p.dot.position.lerpVectors(p.incoming ? end : base, p.incoming ? base : end, state.reduced ? .5 : t);
+      if (p.dot.visible) p.dot.position.lerpVectors(p.incoming ? end : base, p.incoming ? base : end, t);
       p.rings.forEach((ring, index) => {
-        const phase = state.reduced ? .35 : (t - index * .55) / .46;
+        const phase = (t - index * .55) / .46;
         ring.visible = show && (clearPath || index === 0) && phase >= 0 && phase < 1;
         if (!ring.visible) return;
         ring.position.copy((index === 0) === p.incoming ? end : base);
@@ -339,16 +338,21 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     }
     renderer.render(scene,camera);
     renderer.domElement.dataset.drawn = 'true';
-    if (!still) schedule(false);
+    schedule(false);
   }
   function schedule(immediate:boolean){
     if(!alive||!loaded||!visible||document.hidden)return;
     if(timer && !immediate)return;
     clearTimeout(timer);timer=window.setTimeout(draw,immediate?0:1000 / (software ? 12 : state.transferring ? 24 : 30));
   }
-  const move=(e:PointerEvent)=>{if(!mobile && !staticFrame()){mouse.x=e.clientX/innerWidth-.5;mouse.y=e.clientY/innerHeight-.5;}};
-  const visibility=()=>{clearTimeout(timer);timer=0;if(!document.hidden)schedule(true);};
-  const scroll=()=>{if(!staticFrame())schedule(false);};
+  const move=(e:PointerEvent)=>{if(!mobile){mouse.x=e.clientX/innerWidth-.5;mouse.y=e.clientY/innerHeight-.5;}};
+  const visibility = () => {
+    clearTimeout(timer);
+    timer = 0;
+    last = performance.now();
+    if (!document.hidden) schedule(true);
+  };
+  const scroll=()=>schedule(false);
   const lost=(e:Event)=>{e.preventDefault();fail();};
   const regions = new Set<Element>();
   function placeCanvas() {
@@ -419,10 +423,9 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
         pulse.at = performance.now();
       }
       schedule(false);
-      if(staticFrame() && (events.length || next.failed)){clearTimeout(settle);settle=window.setTimeout(()=>schedule(true),1180);}
     },
     dispose(){
-      alive=false;clearTimeout(timer);clearTimeout(settle);observer.disconnect();resize.disconnect();
+      alive=false;clearTimeout(timer);observer.disconnect();resize.disconnect();
       window.removeEventListener('pointermove',move);window.removeEventListener('scroll',scroll);document.removeEventListener('visibilitychange',visibility);
       renderer.domElement.removeEventListener('webglcontextlost',lost);
       const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();

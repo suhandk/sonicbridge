@@ -24,6 +24,8 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(inventory.assets.some(path => path.endsWith('.woff2'))).toBe(true);
   const sceneChunk = inventory.assets.find(path => /moon-relay-.*\.js$/.test(path));
   expect(sceneChunk).toBeTruthy();
+  const transducerChunk = inventory.assets.find(path => /transducer-scene-.*\.js$/.test(path));
+  expect(transducerChunk).toBeTruthy();
   async function dismissReceipt(title: string, content: string) {
     const popup = page.getByRole('dialog', { name: title });
     await expect(popup).toContainText(content);
@@ -35,6 +37,8 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(offlineNavigation?.fromServiceWorker()).toBe(true);
   await expect.poll(() => page.evaluate(path => performance.getEntriesByName(new URL(path, location.href).href).length, sceneChunk!)).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Data, carried by sound.');
+  await page.locator('.transducer-stage').scrollIntoViewIfNeeded();
+  await expect.poll(() => page.evaluate(path => performance.getEntriesByName(new URL(path, location.href).href).length, transducerChunk!)).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
   await page.getByRole('button', {name:'↙ Receive'}).click();
@@ -57,7 +61,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await expect(page.locator('.timeline ol')).toContainText('FIN_ACK');
   await expect(page.locator('canvas[aria-label="Waveform of sampled PCM"]')).toBeVisible();
   await page.getByRole('button', { name: 'Spectrogram', exact: true }).click();
-  await expect(page.locator('.scope canvas')).toHaveAttribute('aria-label','Spectrogram of sampled PCM');
+  await expect(page.locator('.scope .plot canvas')).toHaveAttribute('aria-label','Spectrogram of sampled PCM');
   await page.getByText('Controller decisions').click();
   await expect(page.getByLabel('Link controller')).toContainText('Peer confirmed Robust');
   await expect(page.getByLabel('Link controller')).toContainText('confirmed content goodput');

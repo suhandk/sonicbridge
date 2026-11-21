@@ -169,15 +169,22 @@ export function AcousticRangeBeacon({
 
   // Canvas radar animation loop
   useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    const theme = getComputedStyle(canvas);
+    const color = (token: string) => theme.getPropertyValue(token).trim();
+    const background = color('--space'), border = color('--border'), muted = color('--secondary');
+    const orange = color('--orange'), warning = color('--warning'), failure = color('--failure');
+    const verified = color('--verified'), mono = color('--mono');
+    const radarColor = state.phase === 'no_receiver' ? failure :
+      state.phase === 'found' ? verified : state.phase === 'max_power' ? warning : orange;
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
+    const pulsing = state.phase === 'expanding' || state.phase === 'max_power';
     let animId: number;
     let waveOffset = 0;
 
     const render = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
       const w = canvas.width;
       const h = canvas.height;
       const cx = w / 2;
@@ -185,7 +192,7 @@ export function AcousticRangeBeacon({
       const maxR = Math.min(w, h) * 0.44;
 
       // Clear dark scope background
-      ctx.fillStyle = '#080d16';
+      ctx.fillStyle = background;
       ctx.fillRect(0, 0, w, h);
 
       // Radar concentric distance rings
@@ -197,7 +204,8 @@ export function AcousticRangeBeacon({
       ];
 
       // Draw crosshairs
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.strokeStyle = border;
+      ctx.globalAlpha = .62;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(cx, 10);
@@ -206,29 +214,26 @@ export function AcousticRangeBeacon({
       ctx.lineTo(w - 10, cy);
       ctx.stroke();
 
+      ctx.globalAlpha = 1;
+
       // Draw static distance rings
       rings.forEach(r => {
         ctx.beginPath();
         ctx.arc(cx, cy, r.radius, 0, Math.PI * 2);
         const isActiveTier = state.tier >= r.tier;
-        ctx.strokeStyle = isActiveTier
-          ? state.phase === 'no_receiver'
-            ? 'rgba(239, 68, 68, 0.4)'
-            : state.phase === 'found'
-            ? 'rgba(34, 197, 94, 0.4)'
-            : 'rgba(56, 189, 248, 0.35)'
-          : 'rgba(255, 255, 255, 0.1)';
+        ctx.strokeStyle = isActiveTier ? radarColor : border;
+        ctx.globalAlpha = isActiveTier ? .8 : 1;
         ctx.lineWidth = isActiveTier ? 1.5 : 1;
         ctx.stroke();
+        ctx.globalAlpha = 1;
 
-        // Label distance
-        ctx.font = '9px "IBM Plex Mono", monospace';
-        ctx.fillStyle = isActiveTier ? '#38bdf8' : '#64748b';
+        ctx.font = `11px ${mono}`;
+        ctx.fillStyle = isActiveTier ? radarColor : muted;
         ctx.fillText(r.label, cx + 6, cy - r.radius + 11);
       });
 
       // Animated propagating acoustic sound waves (expanding circle form)
-      if (state.phase === 'expanding' || state.phase === 'max_power') {
+      if (pulsing && !motion.matches) {
         waveOffset = (waveOffset + 0.015) % 1.0;
         const activeMaxRadius = rings[state.tier - 1].radius;
 
@@ -241,21 +246,11 @@ export function AcousticRangeBeacon({
           ctx.beginPath();
           ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
 
-          if (state.phase === 'max_power') {
-            // Blazing high-energy crimson/amber for max power
-            ctx.strokeStyle = `rgba(239, 68, 68, ${opacity * 0.9})`;
-            ctx.lineWidth = 2.5;
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = 8;
-          } else {
-            // Cyan/sky for expanding range
-            ctx.strokeStyle = `rgba(56, 189, 248, ${opacity * 0.8})`;
-            ctx.lineWidth = 2;
-            ctx.shadowColor = '#38bdf8';
-            ctx.shadowBlur = 5;
-          }
+          ctx.strokeStyle = radarColor;
+          ctx.globalAlpha = opacity * .8;
+          ctx.lineWidth = 2;
           ctx.stroke();
-          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 1;
         }
       }
 
@@ -268,31 +263,33 @@ export function AcousticRangeBeacon({
         // Pulsing green lock ring
         ctx.beginPath();
         ctx.arc(cx + lockR * 0.7, cy - lockR * 0.7, 10, 0, Math.PI * 2);
-        ctx.strokeStyle = '#22c55e';
+        ctx.strokeStyle = verified;
         ctx.lineWidth = 2;
-        ctx.shadowColor = '#22c55e';
+        ctx.shadowColor = verified;
         ctx.shadowBlur = 12;
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = '#22c55e';
+        ctx.fillStyle = verified;
         ctx.beginPath();
         ctx.arc(cx + lockR * 0.7, cy - lockR * 0.7, 4, 0, Math.PI * 2);
         ctx.fill();
 
         // Lock text
-        ctx.font = '10px "IBM Plex Mono", monospace';
+        ctx.font = `11px ${mono}`;
         ctx.fillText(confirmed ? TRANSFER_REFERENCE_RANGE : `REFERENCE (~${lockRadius} m)`, cx + lockR * 0.7 + 14, cy - lockR * 0.7 + 4);
       }
 
       // Draw NO RECEIVER Warning Banner overlay on canvas
       if (state.phase === 'no_receiver') {
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+        ctx.fillStyle = failure;
+        ctx.globalAlpha = .12;
         ctx.beginPath();
         ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#ef4444';
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = failure;
         ctx.lineWidth = 2;
         ctx.setLineDash([4, 4]);
         ctx.beginPath();
@@ -300,12 +297,12 @@ export function AcousticRangeBeacon({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        ctx.fillStyle = '#fca5a5';
-        ctx.font = 'bold 11px "IBM Plex Mono", monospace';
+        ctx.fillStyle = failure;
+        ctx.font = `bold 11px ${mono}`;
         ctx.textAlign = 'center';
         ctx.fillText('NO RECEIVER DETECTED IN AUDIBLE RANGE', cx, cy - 14);
-        ctx.font = '10px "IBM Plex Mono", monospace';
-        ctx.fillStyle = '#ef4444';
+        ctx.font = `11px ${mono}`;
+        ctx.fillStyle = failure;
         ctx.fillText('>120m OUTREACH EXHAUSTED', cx, cy + 6);
         ctx.textAlign = 'left';
       }
@@ -313,17 +310,22 @@ export function AcousticRangeBeacon({
       // Central Transmitter Node
       ctx.beginPath();
       ctx.arc(cx, cy, 6, 0, Math.PI * 2);
-      ctx.fillStyle = state.phase === 'no_receiver' ? '#ef4444' : state.phase === 'found' ? '#22c55e' : '#38bdf8';
+      ctx.fillStyle = radarColor;
       ctx.shadowColor = ctx.fillStyle;
       ctx.shadowBlur = 10;
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      animId = requestAnimationFrame(render);
+      if (pulsing && !motion.matches) animId = requestAnimationFrame(render);
     };
 
-    animId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animId);
+    const refreshMotion = () => { cancelAnimationFrame(animId); render(); };
+    render();
+    motion.addEventListener('change', refreshMotion);
+    return () => {
+      cancelAnimationFrame(animId);
+      motion.removeEventListener('change', refreshMotion);
+    };
   }, [state, confirmed]);
 
   const handleStartBeacon = async () => {
@@ -357,7 +359,6 @@ export function AcousticRangeBeacon({
       <div className="card-heading">
         <div className="title-with-pill">
           <h2>Adaptive Distance & Acoustic Range Expander</h2>
-          <span className="mono badge-subtext">Unconfirmed ACK Escalation & Forest Outreach</span>
         </div>
         <span className={`phase-pill phase-${state.phase}`}>
           {state.phase === 'idle' && '⚪ STANDBY'}
@@ -369,7 +370,7 @@ export function AcousticRangeBeacon({
       </div>
 
       <p className="fine">
-        Adaptive Distance Escalation: While transmitting data, if the receiver does NOT return an acoustic confirmation (ACK), the transmitter increases distance range and sound power step-by-step up to 100% MAX power until confirmed. If still unconfirmed after exhausting maximum range, it reports no receiver nearby.
+        Missed acknowledgements can raise the playback tier. The radar shows the corresponding reference range.
       </p>
 
       {/* Radar Display + Live Telemetry Grid */}
@@ -388,7 +389,7 @@ export function AcousticRangeBeacon({
         <div className="range-metrics-panel">
           <div className="metric-tier-gauge">
             <div className="tier-header">
-              <span>Distance Power Tier:</span>
+              <span>Playback tier</span>
               <strong className="mono">{state.tier} of 4 ({RANGE_TIERS[state.tier].name})</strong>
             </div>
             <div className="tier-segments-bar">
@@ -405,7 +406,7 @@ export function AcousticRangeBeacon({
 
           <div className="range-stat-grid">
             <div className="range-stat-box">
-              <span className="stat-label">Acoustic Gain:</span>
+              <span className="stat-label">Acoustic gain</span>
               <strong className={`stat-value ${state.gain >= 1.0 ? 'text-red' : ''}`}>
                 {Math.round(state.gain * 100)}% {state.gain >= 1.0 ? '[MAX LEVEL]' : ''}
               </strong>
@@ -419,7 +420,7 @@ export function AcousticRangeBeacon({
             </div>
 
             <div className="range-stat-box full-width">
-              <span className="stat-label">Frequency Penetration:</span>
+              <span className="stat-label">Chirp frequencies</span>
               <span className="stat-detail mono">{state.frequencyRange}</span>
             </div>
           </div>

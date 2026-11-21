@@ -1538,329 +1538,85 @@ button.btn-small {
   word-break: break-all;
 }
 
-/* ==========================================================================
-   Adaptive Acoustic Range Expander & Radar Beacon
-   ========================================================================== */
-
-.acoustic-range-expander {
-  margin-top: 14px;
-  background: linear-gradient(135deg, rgba(14, 22, 38, 0.95), rgba(8, 13, 22, 0.98));
-  border: 1px solid rgba(56, 189, 248, 0.28);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+/* Adaptive acoustic range */
+.acoustic-range-expander .phase-pill {
+  color: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 5px 10px;
+  font: 12px/1.4 var(--mono);
 }
-
-.title-with-pill {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.title-with-pill h2 {
-  margin: 0;
-  font-size: 1.15rem;
-  letter-spacing: -0.025em;
-  color: #f8fafc;
-}
-
-.badge-subtext {
-  font-size: 0.75rem;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  padding: 2px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(56, 189, 248, 0.25);
-}
-
-.phase-pill {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.76rem;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-}
-
-.phase-pill.phase-idle {
-  background: rgba(100, 116, 139, 0.2);
-  color: #94a3b8;
-  border-color: #475569;
-}
-
-.phase-pill.phase-expanding {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
-  border-color: #f59e0b;
-  animation: pulse-border 1.5s infinite;
-}
-
-.phase-pill.phase-max_power {
-  background: rgba(239, 68, 68, 0.25);
-  color: #f87171;
-  border-color: #ef4444;
-  animation: pulse-border 0.8s infinite;
-}
-
-.phase-pill.phase-found {
-  background: rgba(34, 197, 94, 0.22);
-  color: #4ade80;
-  border-color: #22c55e;
-}
-
-.phase-pill.phase-no_receiver {
-  background: rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
-  border-color: #ef4444;
-}
-
+.acoustic-range-expander :is(.phase-expanding, .phase-max_power, .text-red) { color: var(--warning); }
+.acoustic-range-expander .phase-found { color: var(--verified); }
+.acoustic-range-expander .phase-no_receiver { color: var(--failure); }
 .range-visualizer-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
   gap: 16px;
-  align-items: center;
-  margin: 14px 0;
 }
-
 @media (max-width: 740px) {
-  .range-visualizer-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  .range-visualizer-layout { grid-template-columns: minmax(0, 1fr); }
 }
-
+.radar-container, .metric-tier-gauge, .range-stat-box, .range-status-banner {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
 .radar-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #080d16;
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  border-radius: 10px;
-  padding: 10px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
   overflow: hidden;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.7);
+  background: var(--space);
 }
-
 .radar-circle-canvas {
   width: 100%;
-  max-width: 380px;
+  max-width: 420px;
   height: auto;
   aspect-ratio: 380 / 260;
-  display: block;
-  border-radius: 6px;
 }
-
-.range-metrics-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.range-metrics-panel, .range-stat-grid { display: grid; gap: 8px; }
+.range-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.metric-tier-gauge, .range-stat-box, .range-status-banner {
+  padding: 10px 12px;
+  background: var(--track);
 }
-
-.metric-tier-gauge {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 10px 14px;
-}
-
-.tier-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.8rem;
-  color: #94a3b8;
-  margin-bottom: 8px;
-}
-
-.tier-header strong {
-  color: #f8fafc;
-}
-
-.tier-segments-bar {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
+.tier-header { display: flex; flex-wrap: wrap; gap: 2px 8px; justify-content: space-between; margin-bottom: 8px; }
+.tier-header, .stat-label { font-size: .76rem; color: var(--secondary); }
+.tier-header strong, .stat-detail { color: var(--white); }
+.tier-segments-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
 .tier-segment {
-  height: 28px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-family: 'IBM Plex Mono', monospace;
-  color: #64748b;
-  transition: all 0.25s ease;
-}
-
-.tier-segment.active {
-  background: rgba(56, 189, 248, 0.25);
-  border-color: #38bdf8;
-  color: #e0f2fe;
-  font-weight: 700;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
-}
-
-.tier-segment.max-tier.active {
-  background: rgba(239, 68, 68, 0.35);
-  border-color: #ef4444;
-  color: #fee2e2;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.45);
-}
-
-.range-stat-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.range-stat-box {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  place-items: center;
+  min-height: 28px;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  background: var(--panel);
+  font: 11px var(--mono);
+  color: var(--secondary);
 }
-
-.range-stat-box.full-width {
-  grid-column: span 2;
-}
-
-.stat-label {
-  font-size: 0.72rem;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.stat-value {
-  font-size: 0.92rem;
-  color: #38bdf8;
-}
-
-.stat-value.text-red {
-  color: #f87171;
-}
-
-.stat-detail {
-  font-size: 0.76rem;
-  color: #e2e8f0;
-}
-
-.range-status-banner {
-  padding: 10px 14px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  line-height: 1.45;
-  border-left: 4px solid #38bdf8;
-  background: rgba(56, 189, 248, 0.08);
-  color: #bae6fd;
-}
-
-.range-status-banner.status-expanding {
-  border-left-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.1);
-  color: #fde68a;
-}
-
-.range-status-banner.status-max_power {
-  border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
-  font-weight: 600;
-}
-
-.range-status-banner.status-found {
-  border-left-color: #22c55e;
-  background: rgba(34, 197, 94, 0.12);
-  color: #86efac;
-  font-weight: 600;
-}
-
-.range-status-banner.status-no_receiver {
-  border-left-color: #ef4444;
-  background: rgba(239, 68, 68, 0.2);
-  color: #fecaca;
+.tier-segment.active {
+  color: var(--space);
+  background: var(--orange);
+  border-color: var(--orange);
   font-weight: 700;
 }
-
-.range-actions-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  padding-top: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+.range-stat-box { display: grid; gap: 2px; }
+.range-stat-box.full-width { grid-column: 1 / -1; }
+.stat-value { font: 700 .94rem var(--mono); color: var(--orange); }
+.stat-detail { font: .76rem var(--mono); }
+.range-status-banner {
+  color: var(--secondary);
+  font-size: .82rem;
+  line-height: 1.45;
+  border-inline-start: 3px solid var(--orange);
 }
-
-.btn-range-action {
-  min-height: 44px;
-  padding: 8px 16px;
-  font-weight: 600;
-  font-size: 0.84rem;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.btn-range-action.btn-primary {
-  background: linear-gradient(135deg, #0284c7, #0369a1);
-  border: 1px solid #38bdf8;
-  color: #ffffff;
-}
-
-.btn-range-action.btn-primary:hover {
-  background: #0284c7;
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
-}
-
-.btn-range-action.btn-danger {
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-  border: 1px solid #ef4444;
-  color: #ffffff;
-}
-
-.btn-range-action.btn-secondary {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #cbd5e1;
-}
-
-.btn-range-action.btn-secondary:hover {
-  background: rgba(30, 41, 59, 0.9);
-  color: #ffffff;
-}
-
-.test-sim-group {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
-.btn-sim-action {
-  min-height: 44px;
-  padding: 6px 12px;
-  font-size: 0.76rem;
-  font-family: 'IBM Plex Mono', monospace;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #94a3b8;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-sim-action:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: #38bdf8;
-  color: #e0f2fe;
-}
+.range-status-banner:is(.status-expanding, .status-max_power) { border-inline-start-color: var(--warning); }
+.range-status-banner.status-found { border-inline-start-color: var(--verified); }
+.range-status-banner.status-no_receiver { border-inline-start-color: var(--failure); }
+.range-actions-bar, .test-sim-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.range-actions-bar { padding-top: 12px; border-top: 1px solid var(--border); }
+.range-actions-bar button { min-height: 44px; padding: 8px 14px; font-size: .82rem; }
+.console-root.lunar .range-actions-bar .btn-danger:enabled { color: var(--failure); border-color: var(--failure); }
+.range-actions-bar .btn-sim-action { font: .75rem var(--mono); }

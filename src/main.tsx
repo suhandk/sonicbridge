@@ -408,7 +408,7 @@ function App() {
       <Navbar open={openConsole}/>
       <Hero open={openConsole} ready={ready} listening={listening} physical={physical}/>
       <Guide/>
-      <section className="console-shell"><div className="lunar-wrap"><h2 className="console-title">Console</h2>
+      <section className="console-shell" id="workspace" tabIndex={-1} aria-labelledby="console-title"><div className="lunar-wrap"><h2 className="console-title" id="console-title">Console</h2>
       <header className="console-header">
         <nav className="mode-switcher-bar" aria-label="Console Navigation">
           <button
@@ -433,7 +433,7 @@ function App() {
         </div>
       </header>
 
-      {/* Genesis FX Markets Live Streaming Telemetry Ticker */}
+      {/* Device telemetry */}
       <AcousticTicker
         sampleRate={link.current.sampleRate}
         listening={listening}
@@ -443,7 +443,7 @@ function App() {
       />
 
       {/* Main Workspace Body */}
-      <main style={{ flex: 1, paddingBottom: '32px' }}>
+      <main className="console-main">
         {/* Scenario Views */}
         {activeTab === 'rescue' && (
           <RescueView
@@ -454,13 +454,10 @@ function App() {
         )}
         {/* Classic Modem Link & 3D Instrument View */}
         {activeTab === 'transceiver' && (
-          <div style={{ marginTop: '24px' }}>
-            <div className="heading">
-              <div>
-                <h2>Connect through sound.</h2>
-                <p>Open SONICBRIDGE on both devices and allow microphone access so they can exchange messages and acknowledgements.</p>
-              </div>
-              <div className="tabs" aria-label="Transport mode">
+          <div className="transceiver-workspace">
+            <div className="transceiver-toolbar">
+              <h2>Transfer workspace</h2>
+              <div className="tabs" role="group" aria-label="Transport mode">
                 <button aria-pressed={physical} disabled={!!busy || running} onClick={() => switchMode('microphone')}>
                   Physical Audio
                 </button>
@@ -470,14 +467,13 @@ function App() {
               </div>
             </div>
 
-            <div className="console-grid" id="workspace" tabIndex={-1}>
+            <div className="transfer-grid">
               <div className="task-column">
                 <section className="card setup">
                   <div className="card-heading">
                     <h2>{physical ? 'Audio setup' : 'Local simulation'}</h2>
-                    <span className={'pill ' + (ready ? 'green' : '')}>{listening ? 'Mic open' : ready ? 'Audio ready' : 'Audio off'}</span>
                   </div>
-                  <p>{physical ? 'On the sending laptop choose Send. On the other laptop choose Receive, then Listen with microphone.' : 'Run both endpoints here using generated PCM and a virtual clock. Your microphone and speaker are unused.'}</p>
+                  <p>{physical ? 'On the other device, choose Receive and select Listen with microphone.' : 'Run both endpoints here using generated PCM and a virtual clock. Your microphone and speaker are unused.'}</p>
                   <div className="actions">
                     <button className={ready ? undefined : 'primary'} disabled={!!busy || running} onClick={() => run('Starting audio…', start)}>
                       {ready ? 'Resume Audio' : 'Start Audio'}
@@ -524,41 +520,6 @@ function App() {
                     <button disabled={!!busy || running} aria-pressed={role === 'receive'} onClick={() => setRole('receive')}>↙ Receive</button>
                   </div>
                   <div className="send-panel" id="send" hidden={role !== 'send'}>
-                    {/* Acoustic Speed Mode Selector */}
-                    <div className="speed-choice">
-                      <strong>Acoustic transfer speed</strong>
-                      <div className="speed-mode-bar" role="group" aria-label="Acoustic Speed Mode" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
-                        <button
-                          type="button"
-                          className={`btn-subtab ${speedMode === 'fastest' ? 'active' : ''}`}
-                          aria-pressed={speedMode === 'fastest'}
-                          disabled={!!busy || running}
-                          onClick={() => {
-                            setSpeedMode('fastest');
-                            void link.current.setProtocol('fastest');
-                            if (transport.current) transport.current.timing.guardMs = 250;
-                            setNotice('Audible fastest selected');
-                          }}
-                        >
-                          Audible fastest
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn-subtab ${speedMode === 'fast' ? 'active' : ''}`}
-                          aria-pressed={speedMode === 'fast'}
-                          disabled={!!busy || running}
-                          onClick={() => {
-                            setSpeedMode('fast');
-                            void link.current.setProtocol('fast');
-                            if (transport.current) transport.current.timing.guardMs = operating === 'Robust' ? 900 : 500;
-                            setNotice('Audible fast active · ~9.2s per chunk · ggwave AUDIBLE_FAST');
-                          }}
-                        >
-                          Audible fast
-                        </button>
-                      </div>
-                    </div>
-
                     <div className="kind-tabs" role="group" aria-label="Transfer type">
                       {(['text', 'image', 'file'] as const).map(k => (
                         <button key={k} disabled={!!busy || running} aria-pressed={k === kind} onClick={() => { resetDraft(); setError(''); setKind(k); }}>
@@ -606,6 +567,39 @@ function App() {
                       {(sendAbort.current || running) && <button onClick={cancelTransfer}>Cancel transfer</button>}
                     </div>
                     {valid && <p className="fine">~{duration(seconds)} estimated · {estimate.count} DATA chunks · {measured ? 'scaled from previous transfer' : 'modeled without retries'}.</p>}
+                    <div className="speed-choice">
+                      <strong>Acoustic transfer speed</strong>
+                      <div className="speed-mode-bar" role="group" aria-label="Acoustic Speed Mode">
+                        <button
+                          type="button"
+                          className={`btn-subtab ${speedMode === 'fastest' ? 'active' : ''}`}
+                          aria-pressed={speedMode === 'fastest'}
+                          disabled={!!busy || running}
+                          onClick={() => {
+                            setSpeedMode('fastest');
+                            void link.current.setProtocol('fastest');
+                            if (transport.current) transport.current.timing.guardMs = 250;
+                            setNotice('Audible fastest selected');
+                          }}
+                        >
+                          Audible fastest
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn-subtab ${speedMode === 'fast' ? 'active' : ''}`}
+                          aria-pressed={speedMode === 'fast'}
+                          disabled={!!busy || running}
+                          onClick={() => {
+                            setSpeedMode('fast');
+                            void link.current.setProtocol('fast');
+                            if (transport.current) transport.current.timing.guardMs = operating === 'Robust' ? 900 : 500;
+                            setNotice('Audible fast active · ~9.2s per chunk · ggwave AUDIBLE_FAST');
+                          }}
+                        >
+                          Audible fast
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="receive-panel" id="receive" hidden={role !== 'receive'}>
@@ -630,57 +624,61 @@ function App() {
                   {!ready && <p className="fine">Start Audio to enable transfer controls.</p>}
                 </section>
 
-                {busy && <p className="action-state">{busy}</p>}
                 {error && <div className="error" role="alert"><strong>Link needs attention</strong><p>{error} {hint}</p></div>}
+                {running && session && session.retries >= 2 && <p className="transfer-retry-note">Still retrying. Check that the peer is listening and that its speaker can reach this microphone.</p>}
+                <div className="feedback" role="status">{busy ? busy + ' ' : ''}{notice}</div>
               </div>
 
-              <SignalView
-                key={mode}
-                frame={frame}
-                engagement={engagement}
-                engaging={!!sendAbort.current && !error}
-                live={playing || listening || !!sendAbort.current}
-                receiving={role === 'receive'}
-                verified={!busy && !error && (session?.phase === 'completed' || session?.phase === 'received')}
-                caption={playing ? 'Speaker playback' : awaitingReply && running && !session?.receive ? 'Waiting for acknowledgement' : listening ? 'Microphone open' : physical ? 'Physical Audio' : 'Simulation PCM'}
-              />
-
-              <AcousticRangeBeacon
-                audioLink={link.current}
-                session={session}
-                packets={packets}
-                mode={mode}
-                speedMode={speedMode}
-                onAlert={msg => setNotice(msg)}
-              />
+              <div className="transfer-results">
+                <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
+                <section id="received" className="card results" tabIndex={-1} aria-labelledby="received-title">
+                  <div className="card-heading"><h2 id="received-title">Received</h2><span className="mono">{receipts.length} entries</span></div>
+                  <p className="fine">A checksum verifies integrity, not sender identity.</p>
+                  <div className="inbox" aria-live="polite">
+                    {receipts.length ? receipts.map(item => (
+                      <article key={item.id} data-origin={item.source.startsWith('MICROPHONE / VERIFIED') ? 'verified' : item.source.includes('SIMULATION') ? 'sim' : 'fixture'}>
+                        <div><span>{item.source}</span><time>{item.time}</time></div>
+                        {item.file && item.file.kind !== 'text' ? (
+                          <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)} />
+                        ) : (
+                          <HumanReadableReceipt
+                            text={item.text}
+                            onOpenRescue={() => setActiveTab('rescue')}
+                          />
+                        )}
+                      </article>
+                    )) : (
+                      <div className="empty"><strong>No results yet</strong><p>{mode === 'microphone' ? 'Verified microphone transfers appear here.' : 'Run a simulation to decode generated audio.'}</p></div>
+                    )}
+                  </div>
+                </section>
+              </div>
             </div>
 
-            <div className="workspace">
-              <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
-              <section id="received" className="card results" tabIndex={-1} aria-labelledby="received-title">
-                <div className="card-heading"><h2 id="received-title">Received</h2><span className="mono">{receipts.length} entries</span></div>
-                <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">
-                  {receipts.length ? receipts.map(item => (
-                    <article key={item.id} data-origin={item.source.startsWith('MICROPHONE / VERIFIED') ? 'verified' : item.source.includes('SIMULATION') ? 'sim' : 'fixture'}>
-                      <div><span>{item.source}</span><time>{item.time}</time></div>
-                      {item.file && item.file.kind !== 'text' ? (
-                        <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)} />
-                      ) : (
-                        <HumanReadableReceipt
-                          text={item.text}
-                          onOpenRescue={() => setActiveTab('rescue')}
-                        />
-                      )}
-                    </article>
-                  )) : (
-                    <div className="empty"><strong>No results yet</strong><p>{mode === 'microphone' ? 'Verified microphone transfers appear here.' : 'Run a simulation to decode generated audio.'}</p></div>
-                  )}
-                </div>
-              </section>
-            </div>
+            <section className="link-instruments" aria-labelledby="link-instruments-title">
+              <h2 id="link-instruments-title">Link instruments</h2>
+              <div className="instrument-grid">
+                <SignalView
+                  key={mode}
+                  frame={frame}
+                  engagement={engagement}
+                  engaging={!!sendAbort.current && !error}
+                  live={playing || listening || !!sendAbort.current}
+                  receiving={role === 'receive'}
+                  verified={!busy && !error && (session?.phase === 'completed' || session?.phase === 'received')}
+                  caption={playing ? 'Speaker playback' : awaitingReply && running && !session?.receive ? 'Waiting for acknowledgement' : listening ? 'Microphone open' : physical ? 'Physical Audio' : 'Simulation PCM'}
+                />
 
-            {running && session && session.retries >= 2 && <p className="transfer-retry-note">Still retrying. Check that the peer is listening and that its speaker can reach this microphone.</p>}
-            <div className="feedback" role="status">{busy ? busy + ' ' : ''}{notice}</div>
+                <AcousticRangeBeacon
+                  audioLink={link.current}
+                  session={session}
+                  packets={packets}
+                  mode={mode}
+                  speedMode={speedMode}
+                  onAlert={msg => setNotice(msg)}
+                />
+              </div>
+            </section>
 
             <details className="tech">
               <summary>Technical details <span>Controller, calibration & diagnostics</span></summary>
