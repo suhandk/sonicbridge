@@ -20,10 +20,15 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(inventory.assets).toContain('./vendor/ggwave.js');
   expect(inventory.assets).toContain('./capture-worklet.js');
   expect(inventory.assets.some(path => path.endsWith('.css'))).toBe(true);
+  expect(inventory.assets.filter(path => path.includes('/lunar/') && path.endsWith('.webp'))).toHaveLength(4);
+  expect(inventory.assets.some(path => path.endsWith('.woff2'))).toBe(true);
+  const sceneChunk = inventory.assets.find(path => /moon-relay-.*\.js$/.test(path));
+  expect(sceneChunk).toBeTruthy();
   await context.setOffline(true);
   const offlineNavigation = await page.reload();
   expect(offlineNavigation?.fromServiceWorker()).toBe(true);
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Connect through sound');
+  await expect.poll(() => page.evaluate(path => performance.getEntriesByName(new URL(path, location.href).href).length, sceneChunk!)).toBeGreaterThan(0);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Data, carried by sound.');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
   await page.getByRole('button', {name:'↙ Receive'}).click();
@@ -44,7 +49,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await expect(page.locator('.timeline ol')).toContainText('FIN_ACK');
   await expect(page.locator('canvas[aria-label="Waveform of sampled PCM"]')).toBeVisible();
   await page.getByRole('button', { name: 'Spectrogram', exact: true }).click();
-  await expect(page.locator('canvas')).toHaveAttribute('aria-label','Spectrogram of sampled PCM');
+  await expect(page.locator('.scope canvas')).toHaveAttribute('aria-label','Spectrogram of sampled PCM');
   await page.getByText('Controller decisions').click();
   await expect(page.getByLabel('Link controller')).toContainText('Peer confirmed Robust');
   await expect(page.getByLabel('Link controller')).toContainText('confirmed content goodput');

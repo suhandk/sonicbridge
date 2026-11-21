@@ -45,7 +45,7 @@ test('physical sender UI confirms a PCM peer through synthetic microphone captur
   await expect(monitor).toContainText('Delivery confirmed',{timeout:50000});
   await expect(page.locator('body')).toHaveAttribute('data-peer-received','Acoustic sender check');
   await expect(monitor).toContainText('21 / 21 unique content bytes acknowledged');
-  await expect(monitor).toContainText('Audible Fast · Balanced');
+  await expect(monitor).toContainText('Audible Fastest · Balanced');
   await page.getByText('Packet timeline').click();
   await expect(page.locator('.timeline ol')).toContainText('FIN_ACK');
   expect(errors).toEqual([]);
@@ -62,7 +62,7 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
   await expect(page.getByRole('heading',{name:'Listening for a nearby sender'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Resume plot'})).toBeVisible();
   await page.getByRole('button',{name:'Resume plot'}).click();
-  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.locator('.scope canvas')).toBeVisible();
   await page.locator('summary').filter({hasText:'Technical details'}).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button',{name:'Export microphone WAV'})).toHaveCount(0);

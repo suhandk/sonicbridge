@@ -11,7 +11,7 @@ test('local runtime, Unicode simulation, WAV export/import, and permission denia
   page.on('pageerror', e => errors.push(e.message));
   page.on('request', r => { if (new URL(r.url()).origin !== baseURL && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) foreign.push(r.url()); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Connect through sound');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Data, carried by sound.');
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
   await page.getByRole('button', { name: 'Simulation · local PCM' }).click();
@@ -85,7 +85,7 @@ test(`real AudioWorklet and worker decode WAV-fed microphone at ${graphRate} Hz`
   await expect(page.locator('.inbox article').first()).toContainText(message, { timeout: 45000 });
   await expect(page.locator('.inbox article').first()).toContainText('MICROPHONE / VERIFIED');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Verified at receiver');
-  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.locator('.scope canvas')).toBeVisible();
   await page.getByRole('button', { name: 'Stop listening' }).click();
   await expect(page.getByRole('button', { name: 'Listen with microphone' })).toBeEnabled();
   expect(errors).toEqual([]);

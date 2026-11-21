@@ -7,7 +7,7 @@ const testOnly = process.argv.includes('--http-test');
 const portFlag = process.argv.indexOf('--port');
 const port = Number(portFlag >= 0 ? process.argv[portFlag + 1] : testOnly ? 4173 : 8443);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid port.');
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2' };
 const headers = {
   'X-Content-Type-Options': 'nosniff',
   'Permissions-Policy': 'microphone=(self), camera=(), speaker-selection=(self)',

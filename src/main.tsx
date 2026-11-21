@@ -35,10 +35,13 @@ import type { IncidentReport } from './types/rescue';
 import type { ConfigPackage } from './types/airgap';
 import type { ShipmentRecord, HandoverEvent } from './types/trace';
 
-import '@fontsource/ibm-plex-mono/latin-400.css';
+
 import './style.css';
 import './instrument.css';
 import './components/console.css';
+import './lunar/theme.css';
+import { MoonRelay } from './lunar/moon-view';
+import { Navbar, Hero, Guide, Footer } from './lunar/shell';
 
 type Mode = 'microphone' | 'simulation';
 type Receipt = { file?: VerifiedContent; text: string; source: string; time: string; id: number };
@@ -384,23 +387,21 @@ function App() {
   const physical = mode === 'microphone';
   const hint = /timed out|timeout/i.test(error) ? 'Check that the other device is listening. Enable both microphones, turn up the receiving device’s speaker for replies, and retry.' : '';
 
+  function openConsole() {
+    setActiveTab('transceiver');
+    requestAnimationFrame(() => document.getElementById('workspace')?.scrollIntoView({block:'start'}));
+  }
   return (
-    <div className="console-root">
+    <div className="console-root lunar" id="top">
       {/* Accessibility skip link */}
       <a className="skip" href="#workspace">Skip to transfer controls</a>
 
-      {/* Top Operations Header */}
+      <MoonRelay listening={listening} transferring={running || playing || replying} failed={!!error} packets={packets}/>
+      <Navbar open={openConsole}/>
+      <Hero open={openConsole} ready={ready} listening={listening} physical={physical}/>
+      <Guide/>
+      <section className="console-shell"><div className="lunar-wrap"><h2 className="console-title">Console</h2>
       <header className="console-header">
-        <div className="brand-section">
-          <a className="brand" href="." aria-label="SONICBRIDGE home">
-            <span className="brand-mark" aria-hidden="true">∿</span>
-          </a>
-          <div>
-            <div className="brand-title" style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#38bdf8' }}>SONICBRIDGE</div>
-            <p className="brand-tagline">Offline Communication. Verified Trust. Anywhere.</p>
-          </div>
-        </div>
-
         {/* Selectable Operating Environments */}
         <div className="mode-switcher-bar" role="tablist" aria-label="Mission Environment">
           <button
@@ -452,7 +453,7 @@ function App() {
         listening={listening}
         ready={ready}
         isSimulation={!physical}
-        speedMode={speedMode}
+        speedMode={physical ? speedMode : "fast"}
       />
 
       {/* Navigation Sub-Tabs */}
@@ -567,7 +568,7 @@ function App() {
           <div style={{ marginTop: '24px' }}>
             <div className="heading">
               <div>
-                <h1>Connect through <em>sound.</em></h1>
+                <h2>Connect through sound.</h2>
                 <p>Open SONICBRIDGE on both devices and allow microphone access so they can exchange messages and acknowledgements.</p>
               </div>
               <div className="tabs" aria-label="Transport mode">
@@ -635,15 +636,8 @@ function App() {
                   </div>
                   <div className="send-panel" id="send" hidden={role !== 'send'}>
                     {/* Acoustic Speed Mode Selector */}
-                    <div style={{ marginBottom: '14px', background: '#090f1d', border: '1px solid #1e293b', borderRadius: '10px', padding: '10px 14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '4px' }}>
-                        <span style={{ fontSize: '0.72rem', letterSpacing: '0.08em', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>
-                          Acoustic Transfer Speed
-                        </span>
-                        <span style={{ fontSize: '0.78rem', color: speedMode === 'fastest' ? '#38bdf8' : '#94a3b8', fontWeight: 600 }}>
-                          {speedMode === 'fastest' ? '⚡ Turbo Mode (~4.3s/chunk · 2x faster)' : '⚖️ Standard Mode (~9.2s/chunk · balanced)'}
-                        </span>
-                      </div>
+                    <div className="speed-choice">
+                      <strong>Acoustic transfer speed</strong>
                       <div className="speed-mode-bar" role="group" aria-label="Acoustic Speed Mode" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                         <button
                           type="button"
@@ -654,10 +648,10 @@ function App() {
                             setSpeedMode('fastest');
                             void link.current.setProtocol('fastest');
                             if (transport.current) transport.current.timing.guardMs = 250;
-                            setNotice('⚡ Turbo Speed (Fastest) active · ~4.3s per chunk · ggwave AUDIBLE_FASTEST');
+                            setNotice('Audible fastest selected');
                           }}
                         >
-                          ⚡ Turbo Speed (2x Faster)
+                          Audible fastest
                         </button>
                         <button
                           type="button"
@@ -668,10 +662,10 @@ function App() {
                             setSpeedMode('fast');
                             void link.current.setProtocol('fast');
                             if (transport.current) transport.current.timing.guardMs = operating === 'Robust' ? 900 : 500;
-                            setNotice('⚖️ Standard Speed (Balanced) active · ~9.2s per chunk · ggwave AUDIBLE_FAST');
+                            setNotice('Audible fast active · ~9.2s per chunk · ggwave AUDIBLE_FAST');
                           }}
                         >
-                          ⚖️ Standard Speed (Balanced)
+                          Audible fast
                         </button>
                       </div>
                     </div>
@@ -764,12 +758,12 @@ function App() {
             </div>
 
             <div className="workspace">
-              <SessionMonitor session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
+              <SessionMonitor profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
               <section className="card results">
                 <div className="card-heading"><h2>Results</h2><span className="mono">{receipts.length} entries</span></div>
-                <div className="inbox" aria-live="polite">
+                <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">
                   {receipts.length ? receipts.map(item => (
-                    <article key={item.id}>
+                    <article key={item.id} data-origin={item.source.startsWith('MICROPHONE / VERIFIED') ? 'verified' : item.source.includes('SIMULATION') ? 'sim' : 'fixture'}>
                       <div><span>{item.source}</span><time>{item.time}</time></div>
                       {item.file && item.file.kind !== 'text' ? (
                         <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)} />
@@ -808,7 +802,7 @@ function App() {
                       'Starts Balanced. Repeated ACK loss requests Robust. Eight clean first-attempt ACKs and a 30 s dwell allow recovery.'}</p>
                   {stats && (
                     <>
-                      <p>{mode === 'microphone' ? 'Microphone' : 'Simulated PCM'} · sender target {stats.target} · Audible Fast</p>
+                      <p>{mode === 'microphone' ? 'Microphone' : 'Simulated PCM'} · sender target {stats.target} · {physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"}</p>
                       <p>Last {stats.attempts} resolved DATA attempts · ACKs {stats.acks} · timeouts {stats.attempts - stats.acks} · retries {stats.retries}
                         {stats.attempts > 0 && ` (ACK ${Math.round(100 * stats.acks / stats.attempts)}%, timeout ${Math.round(100 * (1 - stats.acks / stats.attempts))}%, retry ${Math.round(100 * stats.retries / stats.attempts)}%)`}</p>
                       <p>Recent local modem outputs · valid packets {stats.decoded} · rejected packets {stats.rejected}
@@ -887,10 +881,7 @@ function App() {
         )}
       </main>
 
-      <footer style={{ borderTop: '1px solid #1e293b', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b' }}>
-        <span>SONICBRIDGE · Multi-Scenario Offline Acoustic Platform</span>
-        <span>ggwave 0.4.0 WASM · Protocol v1 · Web Crypto ECDSA P-256</span>
-      </footer>
+      </div></section><Footer/>
     </div>
   );
 }
