@@ -70,51 +70,77 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const foil = new T.MeshStandardMaterial({color: 0xd39a49, roughness: .57, metalness: .31});
   const solar = new T.MeshStandardMaterial({color: 0x183b74, emissive: 0x122a53, emissiveIntensity: .55});
   const graphite = new T.MeshStandardMaterial({color: 0x262c35, roughness: .84});
-  const chassis = new T.Mesh(new T.BoxGeometry(.47, .51, .39), foil);
-  const rimGeometry = new T.BoxGeometry(.495, .035, .418);
-  for (const height of [-.247, .247]) {
-    const rim = new T.Mesh(rimGeometry, metal);
-    rim.position.y = height;
-    satellite.add(rim);
+  const hullProfile = [
+    [0, -.39], [.16, -.39], [.218, -.335], [.218, -.04],
+    [.181, .025], [.181, .12], [.141, .18], [.141, .31],
+    [.17, .345], [.17, .385], [0, .385],
+  ].map(([radius, height]) => new T.Vector2(radius, height));
+  satellite.add(new T.Mesh(new T.LatheGeometry(hullProfile, 24), metal));
+
+  const insulation = new T.Mesh(new T.CylinderGeometry(.183, .183, .093, 24), foil);
+  insulation.position.y = .072;
+  const equipmentCollar = new T.Mesh(new T.CylinderGeometry(.224, .224, .077, 24), graphite);
+  equipmentCollar.position.y = -.305;
+  const ribs = new T.TorusGeometry(.22, .009, 5, 24);
+  for (const height of [-.35, -.265, -.13, -.075]) {
+    const rib = new T.Mesh(ribs, metal);
+    rib.rotation.x = Math.PI / 2;
+    rib.position.y = height;
+    satellite.add(rib);
   }
-  const foilSeam = new T.BoxGeometry(.013, .49, .015);
-  for (const x of [-.17, -.08, .08, .17]) {
-    const seam = new T.Mesh(foilSeam, metal);
-    seam.position.set(x, 0, .197);
-    satellite.add(seam);
+  satellite.add(insulation, equipmentCollar);
+
+  const radiator = new T.BoxGeometry(.062, .15, .018);
+  for (let index = 0; index < 6; index++) {
+    const angle = index * Math.PI / 3;
+    const tile = new T.Mesh(radiator, graphite);
+    tile.position.set(Math.sin(angle) * .216, -.18, Math.cos(angle) * .216);
+    tile.rotation.y = angle;
+    satellite.add(tile);
   }
-  const instrumentBay = new T.Mesh(new T.BoxGeometry(.26, .22, .1), graphite);
-  instrumentBay.position.set(0, -.04, .205);
-  const sensor = new T.Mesh(new T.CylinderGeometry(.075, .09, .05, 12), metal);
-  sensor.rotation.x = Math.PI / 2;
-  sensor.position.set(.04, -.04, .28);
-  const sensorGlass = new T.Mesh(new T.SphereGeometry(.049, 12, 8),
-    new T.MeshStandardMaterial({color: 0x123750, roughness: .2, metalness: .5}));
-  sensorGlass.scale.z = .32;
-  sensorGlass.position.copy(sensor.position);
-  sensorGlass.position.z += .027;
-  const wingSpar = new T.Mesh(new T.BoxGeometry(1.7, .048, .052), metal);
-  satellite.add(chassis, instrumentBay, sensor, sensorGlass, wingSpar);
-  const cell = new T.BoxGeometry(.212, .415, .037);
-  const panelFrame = new T.BoxGeometry(.23, .44, .026);
+  const sensorBarrel = new T.Mesh(new T.CylinderGeometry(.127, .149, .087, 20), graphite);
+  sensorBarrel.position.y = .395;
+  const sensorGlass = new T.Mesh(new T.SphereGeometry(.088, 16, 10),
+    new T.MeshStandardMaterial({color: 0x253e53, roughness: .21, metalness: .34}));
+  sensorGlass.scale.y = .26;
+  sensorGlass.position.y = .435;
+  const sensorRim = new T.Mesh(new T.TorusGeometry(.111, .014, 6, 20), foil);
+  sensorRim.position.y = .438;
+  sensorRim.rotation.x = Math.PI / 2;
+  satellite.add(sensorBarrel, sensorGlass, sensorRim);
+  const cell = new T.BoxGeometry(.232, .39, .023);
+  const panelFrame = new T.BoxGeometry(.247, .409, .017);
   const gridMaterial = new T.LineBasicMaterial({color: 0x8aadd8, transparent: true, opacity: .48});
   const gridPoints: T.Vector3[] = [];
   for (const x of [-.07, 0, .07]) {
-    gridPoints.push(new T.Vector3(x, -.201, .020), new T.Vector3(x, .201, .020));
+    gridPoints.push(new T.Vector3(x, -.181, .013), new T.Vector3(x, .181, .013));
   }
   for (const y of [-.15, -.10, -.05, 0, .05, .10, .15]) {
-    gridPoints.push(new T.Vector3(-.099, y, .020), new T.Vector3(.099, y, .020));
+    gridPoints.push(new T.Vector3(-.099, y, .013), new T.Vector3(.099, y, .013));
   }
   const grid = new T.BufferGeometry().setFromPoints(gridPoints);
+  const wingBoom = new T.CylinderGeometry(.024, .034, .19, 10);
+  const hingeGeometry = new T.CylinderGeometry(.023, .023, .407, 8);
   for (const side of [-1, 1]) {
+    const wing = new T.Group();
+    wing.position.set(side * .31, .015, 0);
+    wing.rotation.y = side * .16;
+    const boom = new T.Mesh(wingBoom, metal);
+    boom.rotation.z = Math.PI / 2;
+    boom.position.x = -side * .07;
+    wing.add(boom);
     for (let section = 0; section < 3; section++) {
       const panel = new T.Mesh(cell, solar);
-      panel.position.x = side * (.42 + section * .225);
-      const backing = new T.Mesh(panelFrame, metal);
-      backing.position.z = -.014;
-      panel.add(backing, new T.LineSegments(grid, gridMaterial));
-      satellite.add(panel);
+      panel.position.set(side * (.134 + section * .254), 0, section * .022);
+      panel.rotation.y = -side * section * .075;
+      const frame = new T.Mesh(panelFrame, metal);
+      frame.position.z = -.011;
+      const hinge = new T.Mesh(hingeGeometry, metal);
+      hinge.position.x = -side * .119;
+      panel.add(frame, hinge, new T.LineSegments(grid, gridMaterial));
+      wing.add(panel);
     }
+    satellite.add(wing);
   }
   const terminal = new T.Group();
   const terminalMount = new T.Mesh(new T.CylinderGeometry(.052, .07, .06, 12), metal);
@@ -138,7 +164,14 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   terminal.add(reflector, supports, tip);
   world.add(terminal);
 
-  const orbitTilt = new T.Euler(.42, -.24, -.19);
+  const orbitTilt = new T.Euler(.86, -.38, -.28, 'ZYX');
+  const eccentricity = .16;
+  const minorAxis = Math.sqrt(1 - eccentricity ** 2);
+  // The origin of this ellipse is its near focus, where the Moon sits.
+  function orbitPoint(point: T.Vector3, anomaly: number) {
+    return point.set(Math.cos(anomaly) - eccentricity, Math.sin(anomaly) * minorAxis, 0)
+      .applyEuler(orbitTilt);
+  }
   const orbitDirection = new T.Vector3();
   const terminalDirection = new T.Vector3();
   const terminalOffset = new T.Vector3();
@@ -149,7 +182,7 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
   const orbit = new T.LineLoop(new T.BufferGeometry().setFromPoints(
     Array.from({length: 96}, (_, index) => {
       const angle = index * 2 * Math.PI / 96;
-      return new T.Vector3(Math.cos(angle), Math.sin(angle), 0).applyEuler(orbitTilt);
+      return orbitPoint(new T.Vector3(), angle);
     }),
   ), new T.LineBasicMaterial({color: 0x71839a, transparent: true, opacity: .23}));
   world.add(orbit);
@@ -198,8 +231,8 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     moonRest.set(span * (compact ? -.38 : mobile ? .14 : .49), moonY, 0);
     earthRest.set(span * (compact ? .4 : .76), moonY + radius * (compact ? 1.8 : 1.43), .4);
     earth.scale.setScalar(compact ? .5 : earthRadius);
-    orbit.scale.setScalar(radius * (compact ? 1.42 : 1.24));
-    satellite.scale.setScalar(compact ? .63 : mobile ? .28 : .43);
+    orbit.scale.setScalar(radius * 1.48);
+    satellite.scale.setScalar(compact ? .64 : mobile ? .32 : .48);
     terminal.scale.copy(satellite.scale);
     schedule(true);
   }
@@ -226,11 +259,17 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     tipMat.color.multiplyScalar(state.listening||state.transferring?1:.52);
     earth.rotation.y = -1.36 + rotation * .24;
     clouds.rotation.y = .1 + rotation * .018;
-    const angle = 1.06 - rotation * .37;
-    orbitDirection.set(Math.cos(angle), Math.sin(angle), 0).applyEuler(orbitTilt);
+    // Uniform time advances mean anomaly. Kepler's equation gives the actual position.
+    const meanAnomaly = (1.26 - rotation * .37) % (2 * Math.PI);
+    let angle = meanAnomaly;
+    for (let step = 0; step < 3; step++) {
+      angle -= (angle - eccentricity * Math.sin(angle) - meanAnomaly) /
+        (1 - eccentricity * Math.cos(angle));
+    }
+    orbitPoint(orbitDirection, angle);
     satellite.position.copy(moon.position).addScaledVector(orbitDirection, orbit.scale.x);
     satellite.rotation.set(.21 + Math.sin(angle) * .12, .28 + Math.cos(angle) * .22, angle + Math.PI / 2);
-    terminalOffset.set(0, .272, 0).applyEuler(satellite.rotation).multiplyScalar(satellite.scale.y);
+    terminalOffset.set(0, -.12, .255).applyEuler(satellite.rotation).multiplyScalar(satellite.scale.y);
     terminal.position.copy(satellite.position).add(terminalOffset);
     terminalDirection.copy(earth.position).sub(terminal.position).normalize();
     terminal.quaternion.setFromUnitVectors(up, terminalDirection);
