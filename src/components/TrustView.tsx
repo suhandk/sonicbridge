@@ -19,7 +19,7 @@ export function TrustView({ localIdentity }: TrustViewProps) {
       const parsed = JSON.parse(enrollJwkJson);
       const jwk = parsed.publicKeyJwk || parsed;
       if (!jwk.x || !jwk.y || jwk.kty !== 'EC') {
-        throw new Error('Expected an ECDSA P-256 public key.');
+        throw new Error('Invalid ECDSA P-256 public key JWK.');
       }
       const enrolled = defaultTrustRegistry.enroll({
         name: enrollName || `Peer-${deriveFingerprint(jwk).slice(0, 6)}`,
@@ -31,7 +31,7 @@ export function TrustView({ localIdentity }: TrustViewProps) {
       setEnrollJwkJson('');
       setStatusMessage(`Enrolled ${enrolled.name} (${enrolled.fingerprint}) as VERIFIED.`);
     } catch (err) {
-      setStatusMessage(`Could not enroll this peer. Paste the complete public identity card or ECDSA P-256 public key JSON and try again. ${err instanceof Error ? err.message : ''}`);
+      setStatusMessage(`Enrollment error: ${String(err)}`);
     }
   };
 
@@ -47,8 +47,7 @@ export function TrustView({ localIdentity }: TrustViewProps) {
     setStatusMessage(`Device ${id} verified.`);
   };
 
-  const handleRemove = (id: string, name: string) => {
-    if (!window.confirm(`Delete ${name} from this device's trust registry?`)) return;
+  const handleRemove = (id: string) => {
     defaultTrustRegistry.remove(id);
     setTrustedDevices(defaultTrustRegistry.getAll());
     setStatusMessage(`Device ${id} removed from registry.`);
@@ -66,11 +65,11 @@ export function TrustView({ localIdentity }: TrustViewProps) {
       <div className="scenario-header">
         <div>
           <h2>CRYPTOGRAPHIC DEVICE IDENTITY & TRUST REGISTRY</h2>
-          <p className="scenario-tagline">Exchange public keys to verify signatures on acoustic messages.</p>
+          <p className="scenario-tagline">"Zero-knowledge acoustic authentication with Web Crypto ECDSA P-256."</p>
         </div>
       </div>
 
-      <div className={statusMessage ? "status-banner info" : undefined} role="status">{statusMessage}</div>
+      {statusMessage && <div className="status-banner info">{statusMessage}</div>}
 
       <div className="identity-split-view">
         {/* Local Device Identity */}
@@ -95,20 +94,16 @@ export function TrustView({ localIdentity }: TrustViewProps) {
             </div>
           </div>
 
-          <h4 id="public-key-card">Public Key Card (Share with Peers)</h4>
+          <h4>Public Key Card (Share with Peers)</h4>
           <p className="note-text">Peers can import this public key card to verify your digital acoustic signatures:</p>
           <div className="card-json-box">
-            <textarea aria-labelledby="public-key-card" readOnly rows={5} value={localCardJson} className="code-textarea" />
+            <textarea readOnly rows={5} value={localCardJson} className="code-textarea" />
           </div>
           <button
             className="btn-secondary"
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(localCardJson);
-                setStatusMessage('Public identity card copied to clipboard.');
-              } catch {
-                setStatusMessage('Could not copy to the clipboard. Select and copy the public key card above.');
-              }
+            onClick={() => {
+              navigator.clipboard?.writeText(localCardJson);
+              setStatusMessage('Public identity card copied to clipboard.');
             }}
           >
             📋 Copy Public Identity Card
@@ -120,8 +115,8 @@ export function TrustView({ localIdentity }: TrustViewProps) {
           <h3>Enroll Trusted Peer Device</h3>
           <form className="console-form" onSubmit={handleEnrollManual}>
             <div className="form-group">
-              <label htmlFor="peer-name">Peer Device Label / Name</label>
-              <input id="peer-name"
+              <label>Peer Device Label / Name</label>
+              <input
                 type="text"
                 placeholder="e.g. Field Coordinator Tablet B"
                 value={enrollName}
@@ -130,8 +125,8 @@ export function TrustView({ localIdentity }: TrustViewProps) {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="peer-key">Paste Peer Public Key JSON (or Identity Card)</label>
-              <textarea id="peer-key"
+              <label>Paste Peer Public Key JSON (or Identity Card)</label>
+              <textarea
                 rows={5}
                 placeholder='{"publicKeyJwk": {"kty": "EC", "crv": "P-256", "x": "...", "y": "..."}}'
                 value={enrollJwkJson}
@@ -153,46 +148,41 @@ export function TrustView({ localIdentity }: TrustViewProps) {
         {trustedDevices.length === 0 ? (
           <p className="empty-notice">No external peer devices enrolled yet. Enroll peers above to verify incoming acoustic signatures.</p>
         ) : (
-          <div className="table-content">
-            <p className="table-scroll-hint">Scroll sideways to see more columns.</p>
-            <div className="table-scroll" role="region" aria-label="Enrolled devices" data-lenis-prevent tabIndex={0}>
-              <table className="console-table">
-                <thead>
-                  <tr>
-                    <th>Device Name</th>
-                    <th>Fingerprint</th>
-                    <th>Trust Level</th>
-                    <th>Enrolled At</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trustedDevices.map(dev => (
-                    <tr key={dev.id}>
-                      <td><strong>{dev.name}</strong></td>
-                      <td><code>{dev.fingerprint}</code></td>
-                      <td>
-                        <span className={`badge-trust ${dev.trustLevel}`}>
-                          {dev.trustLevel.toUpperCase()}
-                        </span>
-                      </td>
-                      <td>{new Date(dev.enrolledAt).toLocaleDateString()}</td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          {dev.trustLevel !== 'verified' ? (
-                            <button className="btn-small ok" onClick={() => handleVerify(dev.id)}>Verify</button>
-                          ) : (
-                            <button className="btn-small warn" onClick={() => handleRevoke(dev.id)}>Revoke</button>
-                          )}
-                          <button className="btn-small danger" onClick={() => handleRemove(dev.id, dev.name)}>Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <table className="console-table">
+            <thead>
+              <tr>
+                <th>Device Name</th>
+                <th>Fingerprint</th>
+                <th>Trust Level</th>
+                <th>Enrolled At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trustedDevices.map(dev => (
+                <tr key={dev.id}>
+                  <td><strong>{dev.name}</strong></td>
+                  <td><code>{dev.fingerprint}</code></td>
+                  <td>
+                    <span className={`badge-trust ${dev.trustLevel}`}>
+                      {dev.trustLevel.toUpperCase()}
+                    </span>
+                  </td>
+                  <td>{new Date(dev.enrolledAt).toLocaleDateString()}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {dev.trustLevel !== 'verified' ? (
+                        <button className="btn-small ok" onClick={() => handleVerify(dev.id)}>Verify</button>
+                      ) : (
+                        <button className="btn-small warn" onClick={() => handleRevoke(dev.id)}>Revoke</button>
+                      )}
+                      <button className="btn-small danger" onClick={() => handleRemove(dev.id)}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

@@ -2,8 +2,6 @@ import type { OperatingMode, ControllerSnapshot } from './controller';
 import { estimateTransfer, manifestSize, packContent, safeName, type ContentKind, type Measurement, type VerifiedContent } from './content';
 import { readImage, thumbnail, type ImageDraft } from './images';
 import { RasterPreview, ReceivedFile } from './file-preview';
-import Lenis from 'lenis';
-import 'lenis/dist/lenis.css';
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AudioLink, DEFAULT_PLAYBACK_GAIN, describeError } from './audio';
@@ -22,7 +20,13 @@ import { readWav, writeWav } from './wav';
 import { defaultAcousticBridge } from './bridge/acoustic-bridge';
 import { getOrCreateDeviceIdentity } from './security/identity';
 import type { DeviceIdentity } from './types/identity';
+import { AudioVisualizerView } from './components/AudioVisualizerView';
 import { RescueView } from './components/RescueView';
+import { AirGapView } from './components/AirGapView';
+import { TraceView } from './components/TraceView';
+import { TrustView } from './components/TrustView';
+import { AuditView } from './components/AuditView';
+import { RelayQueueView } from './components/RelayQueueView';
 import { AcousticTicker } from './components/AcousticTicker';
 import { defaultRescueState } from './scenarios/rescue/state';
 import { defaultAirGapState } from './scenarios/airgap/state';
@@ -30,7 +34,6 @@ import { defaultTraceState } from './scenarios/trace/state';
 import type { IncidentReport } from './types/rescue';
 import type { ConfigPackage } from './types/airgap';
 import type { ShipmentRecord, HandoverEvent } from './types/trace';
-import { TransferConfirmation, type TransferReceipt } from './components/TransferConfirmation';
 import { HumanReadableReceipt } from './components/HumanReadableReceipt';
 
 
@@ -41,36 +44,10 @@ import './lunar/theme.css';
 import { MoonRelay } from './lunar/moon-view';
 import { Navbar, Hero, Guide, Footer } from './lunar/shell';
 
-const consoleViews = [
-  ['transceiver', 'Transceiver'],
-  ['rescue', 'Rescue operations'],
-] as const;
-type ConsoleView = typeof consoleViews[number][0];
-
 type Mode = 'microphone' | 'simulation';
 type Receipt = { file?: VerifiedContent; text: string; source: string; time: string; id: number };
 
 function App() {
-  useEffect(() => {
-    const motion = matchMedia('(prefers-reduced-motion: no-preference)');
-    let scroll: Lenis | undefined;
-    const updateScroll = () => {
-      scroll?.destroy();
-      scroll = motion.matches ? new Lenis({
-        autoRaf: true,
-        lerp: 0.13,
-        stopInertiaOnNavigate: true,
-        prevent: node => node.matches('textarea'),
-      }) : undefined;
-    };
-    updateScroll();
-    motion.addEventListener('change', updateScroll);
-    return () => {
-      motion.removeEventListener('change', updateScroll);
-      scroll?.destroy();
-    };
-  }, []);
-
   const [audioLink] = useState(() => new AudioLink());
   const link = useRef(audioLink);
   const transport = useRef<StopAndWait | undefined>(undefined);
@@ -79,9 +56,8 @@ function App() {
 
   // Identity & Multi-Scenario Navigation State
   const [localIdentity, setLocalIdentity] = useState<DeviceIdentity | null>(null);
-  const [identityUnavailable, setIdentityUnavailable] = useState(false);
   const [relayPreview, setRelayPreview] = useState<HTMLDivElement | null>(null);
-  const [activeTab, setActiveTab] = useState<ConsoleView>('transceiver');
+  const [activeTab, setActiveTab] = useState<'transceiver' | 'rescue' | 'airgap' | 'trace' | 'visualizer' | 'trust' | 'relay' | 'audit'>('transceiver');
   const [speedMode, setSpeedMode] = useState<'fastest' | 'fast'>('fastest');
 
   const [role, setRole] = useState<'send' | 'receive'>('send');
@@ -102,8 +78,6 @@ function App() {
   const [ready, setReady] = useState(false), [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(''), [error, setError] = useState('');
   const [text, setText] = useState('');
-  const incomingStartedAt = useRef<number | undefined>(undefined);
-  const [confirmations, setConfirmations] = useState<TransferReceipt[]>([]);
   const [notice, setNotice] = useState('Start audio to prepare the local modem.');
   const [, setLevel] = useState(0), [receipts, setReceipts] = useState<Receipt[]>([]);
   const [fixture, setFixture] = useState<{ pcm: Float32Array; sampleRate: number }>();
@@ -190,7 +164,7 @@ function App() {
     void getOrCreateDeviceIdentity().then(keys => {
       setLocalIdentity(keys.identity);
       defaultAcousticBridge.setLocalIdentity(keys.identity.id, keys.publicKey, keys.privateKey);
-    }).catch(() => setIdentityUnavailable(true));
+    });
 
     const audio = link.current;
     audio.onCapture = (pcm, rate) => {
@@ -214,42 +188,16 @@ function App() {
     return () => { unregister(); audio.onCapture = undefined; recording.current = undefined; calibration.current?.dispose(); calibration.current = undefined; transport.current?.dispose(); transport.current = undefined; sendAbort.current?.abort(); audio.stop(); audio.onDiagnostics = undefined; audio.onInterrupted = undefined; audio.onDevices = undefined; };
   }, []);
 
-  function confirmTransfer(receipt: Omit<TransferReceipt, 'time'> & { time?: Date }) {
-    const completed = { time: new Date(), ...receipt };
-    setConfirmations(items => [...items, completed]);
-  }
-
-  function receive(message: string, source: string, file?: VerifiedContent, physicalBytes?: number) {
+  function receive(message: string, source: string, file?: VerifiedContent) {
     setReceipts(items => [{ text: message, source, file, time: new Date().toLocaleTimeString(), id: Date.now() + Math.random() }, ...items].slice(0, 20));
-
-    const time = new Date();
-    const elapsed = physicalBytes !== undefined && incomingStartedAt.current !== undefined
-      ? (performance.now() - incomingStartedAt.current) / 1000
-      : undefined;
-    if (physicalBytes !== undefined) incomingStartedAt.current = undefined;
-
-    function confirmIncoming(description?: string) {
-      if (physicalBytes === undefined) return;
-      confirmTransfer({
-        direction: 'received',
-        channel: 'acoustic',
-        kind: description ? 'rescue' : file?.kind ?? 'text',
-        name: description ?? file?.name ?? 'Message',
-        bytes: physicalBytes, time, elapsed,
-        attachment: file?.kind === 'image' || file?.kind === 'file' ? file : undefined,
-        text: description ? undefined : file ? file.text : message,
-      });
-    }
 
     // Pass through AcousticBridge for cryptographic verification, replay check, and scenario dispatch
     if (file) {
       void defaultAcousticBridge.handleReceivedContent(file).then(evt => {
-        if (!evt) { confirmIncoming(); return; }
-        if (evt.envelope && evt.verification.valid && !evt.isReplay) {
+        if (evt && evt.envelope && evt.verification.valid && !evt.isReplay) {
           const type = evt.envelope.messageType;
           if (type === 'rescue_incident') {
             defaultRescueState.addReport(evt.envelope.payload as IncidentReport);
-            confirmIncoming('Rescue incident report');
             setNotice(`🚨 Received verified Rescue incident from ${evt.envelope.originDeviceId}`);
           } else if (type === 'airgap_package') {
             defaultAirGapState.addPackage(evt.envelope.payload as ConfigPackage);
@@ -265,15 +213,12 @@ function App() {
               console.warn('Trace handover receive note:', e);
             }
           }
-          if (type !== 'rescue_incident') confirmIncoming();
-        } else if (!evt.verification.valid) {
+        } else if (evt && !evt.verification.valid) {
           setError(`Security Alert: Received unverified or tampered envelope: ${evt.error || 'INVALID_SIGNATURE'}`);
         } else if (evt && evt.isReplay) {
           setError(`Security Alert: Rejected replayed message: ${evt.error || 'DUPLICATE_MESSAGE_ID'}`);
         }
-      }).catch(error => setError(`Could not verify the incoming message: ${describeError(error)}`));
-    } else {
-      confirmIncoming();
+      });
     }
   }
 
@@ -287,14 +232,10 @@ function App() {
     transport.current ??= new StopAndWait(link.current, undefined, {
       controller: setStats,
       ...monitorEvents, replying: setReplying,
-      receiveStarted(size) {
-        incomingStartedAt.current = performance.now();
-        monitorEvents.receiveStarted?.(size);
-      },
       diagnostic: detail => setNotice(detail),
-      content: item => receive(item.text ?? item.name, 'MICROPHONE / VERIFIED · SHA-256', item, item.bytes.length),
+      content: item => receive(item.text ?? item.name, 'MICROPHONE / VERIFIED · SHA-256', item),
       deliver: bytes => {
-        try { if (calibration.current?.handle(bytes)) return; receive(new TextDecoder('utf-8', { fatal: true }).decode(bytes), 'MICROPHONE / VERIFIED', undefined, bytes.length); }
+        try { if (calibration.current?.handle(bytes)) return; receive(new TextDecoder('utf-8', { fatal: true }).decode(bytes), 'MICROPHONE / VERIFIED'); }
         catch (error) { setError(`Verified binary transfer is not valid UTF-8 text: ${describeError(error)}`); }
       },
     });
@@ -344,9 +285,7 @@ function App() {
     if (sendAbort.current) return;
     const abort = sendAbort.current = new AbortController();
     setEngagement(value => value + 1); setAwaitingReply(false);
-    const startedAt = performance.now();
-    const payload = kind === 'text' ? new TextEncoder().encode(text) : draft!.bytes;
-    const body = packContent(kind, name, payload);
+    const body = packContent(kind, name, kind === 'text' ? new TextEncoder().encode(text) : draft!.bytes);
     setInitialEta(seconds);
     let negotiated = MAX_PAYLOAD;
     const options = {
@@ -371,19 +310,12 @@ function App() {
         await simulateTransfer(body, { monitor: monitorEvents, mode: operating, controller: setStats, sendOptions: options, content: item => receive(item.text ?? item.name, 'SIMULATION / PCM / VERIFIED · SHA-256', item), signal: abort.signal, waveform: (pcm, rate) => outgoing(pcm, rate, 'Simulation PCM') });
         setNotice('Simulated transfer confirmed by FIN_ACK through the real WASM/PCM codec. Physical-device testing pending.');
       }
-      confirmTransfer({
-        direction: 'sent', channel: mode === 'microphone' ? 'acoustic' : 'simulation',
-        kind, name, bytes: count, text: kind === 'text' ? text : undefined,
-        elapsed: (performance.now() - startedAt) / 1000,
-        attachment: kind === 'text' ? undefined : { kind, name, bytes: payload },
-      });
     } finally { if (sendAbort.current === abort) sendAbort.current = undefined; }
   }
 
   // Unified Scenario Acoustic Transmission Function
   async function sendScenarioPayload(body: Uint8Array, description: string) {
     if (sendAbort.current) return;
-    const startedAt = performance.now();
     const abort = sendAbort.current = new AbortController();
     setEngagement(value => value + 1);
     setAwaitingReply(false);
@@ -423,11 +355,6 @@ function App() {
         });
         setNotice(`Simulation transfer complete: ${description}`);
       }
-      confirmTransfer({
-        direction: 'sent', channel: mode === 'microphone' ? 'acoustic' : 'simulation',
-        kind: 'rescue', name: description, bytes: body.length,
-        elapsed: (performance.now() - startedAt) / 1000,
-      });
     } finally {
       if (sendAbort.current === abort) sendAbort.current = undefined;
     }
@@ -464,61 +391,127 @@ function App() {
 
   function openConsole() {
     setActiveTab('transceiver');
-    document.getElementById('workspace')?.focus();
+    requestAnimationFrame(() => document.getElementById('workspace')?.scrollIntoView({block:'start'}));
   }
   return (
     <div className="console-root lunar" id="top">
-      <header>
       {/* Accessibility skip link */}
-      <a className="skip" href="#workspace" onClick={openConsole}>Skip to transfer controls</a>
+      <a className="skip" href="#workspace">Skip to transfer controls</a>
 
+      <MoonRelay preview={relayPreview} listening={listening} transferring={running || playing || replying} failed={!!error} packets={packets}/>
       <Navbar open={openConsole}/>
-      </header>
-      <main>
-      <Hero open={openConsole} ready={ready} listening={listening} physical={physical}>
-        <MoonRelay preview={relayPreview} listening={listening} transferring={running || playing || replying} failed={!!error} packets={packets}/>
-      </Hero>
+      <Hero open={openConsole} ready={ready} listening={listening} physical={physical}/>
       <Guide/>
-      <section className="console-shell" id="workspace" tabIndex={-1} aria-labelledby="console-title">
-        <div className="lunar-wrap">
-          <header className="console-header">
-            <div className="console-intro">
-              <h2 className="console-title" id="console-title">Acoustic console</h2>
-              <p>Send and receive data, inspect the signal, and verify delivery.</p>
-            </div>
-            <div className="header-controls">
-              {localIdentity && (
-                <span className="pill">Device <strong>{localIdentity.name}</strong></span>
-              )}
-              {identityUnavailable && <span className="pill" role="status">Device identity unavailable</span>}
-              <span className={`pill ${ready ? 'green' : ''}`}>
-                {listening ? 'Microphone open' : ready ? 'Audio ready' : 'Audio off'}
-              </span>
-            </div>
-          </header>
-          <AcousticTicker
-            sampleRate={link.current.sampleRate}
-            listening={listening}
-            ready={ready}
-            isSimulation={!physical}
-            speedMode={speedMode}
-          />
+      <section className="console-shell"><div className="lunar-wrap"><h2 className="console-title">Console</h2>
+      <header className="console-header">
+        {/* Selectable Operating Environments */}
+        <div className="mode-switcher-bar" role="tablist" aria-label="Mission Environment">
+          <button
+            className={`mode-tab-btn transceiver ${activeTab === 'transceiver' ? 'active' : ''}`}
+            onClick={() => setActiveTab('transceiver')}
+          >
+            📡 TRANSCEIVER
+          </button>
+          <button
+            className={`mode-tab-btn rescue ${activeTab === 'rescue' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rescue')}
+          >
+            🚨 RESCUE
+          </button>
+          <button
+            className={`mode-tab-btn airgap ${activeTab === 'airgap' ? 'active' : ''}`}
+            onClick={() => setActiveTab('airgap')}
+          >
+            🔒 AIR-GAP
+          </button>
+          <button
+            className={`mode-tab-btn trace ${activeTab === 'trace' ? 'active' : ''}`}
+            onClick={() => setActiveTab('trace')}
+          >
+            📦 TRACE
+          </button>
+        </div>
 
-          <div className="console-layout">
-            <nav className="console-nav-bar" aria-label="Console navigation">
-              {consoleViews.map(([view, label]) => (
-                <button
-                  key={view}
-                  id={`console-view-${view}`}
-                  className="nav-tab-item"
-                  aria-current={activeTab === view ? 'true' : undefined}
-                  onClick={() => setActiveTab(view)}
-                >
-                  {label}
-                </button>
-              ))}
-            </nav>
-            <div className="console-content" role="region" aria-labelledby={`console-view-${activeTab}`}>
+        {/* Device Identity Badge and Audio Status */}
+        <div className="header-controls">
+          {localIdentity && (
+            <button
+              className="device-badge-btn"
+              title="Click to view Identity & Trust"
+              onClick={() => setActiveTab('trust')}
+            >
+              ID: <strong>{localIdentity.name}</strong> ({localIdentity.fingerprint.slice(0, 6)})
+            </button>
+          )}
+          <span className={`pill ${ready ? 'green' : ''}`}>
+            {listening ? '● Mic Open' : ready ? '● Audio Ready' : '○ Audio Off'}
+          </span>
+        </div>
+      </header>
+
+      {/* Genesis FX Markets Live Streaming Telemetry Ticker */}
+      <AcousticTicker
+        sampleRate={link.current.sampleRate}
+        listening={listening}
+        ready={ready}
+        isSimulation={!physical}
+        speedMode={physical ? speedMode : "fast"}
+      />
+
+      {/* Navigation Sub-Tabs */}
+      <nav className="console-nav-bar" aria-label="Console Navigation">
+        <button
+          className={`nav-tab-item ${activeTab === 'transceiver' ? 'active' : ''}`}
+          onClick={() => setActiveTab('transceiver')}
+        >
+          📡 Acoustic Transceiver
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'rescue' ? 'active' : ''}`}
+          onClick={() => setActiveTab('rescue')}
+        >
+          🚨 Rescue Operations
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'airgap' ? 'active' : ''}`}
+          onClick={() => setActiveTab('airgap')}
+        >
+          🔒 Air-Gap Security
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'trace' ? 'active' : ''}`}
+          onClick={() => setActiveTab('trace')}
+        >
+          📦 Supply Chain Trace
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'visualizer' ? 'active' : ''}`}
+          onClick={() => setActiveTab('visualizer')}
+        >
+          📊 Audio Spectrum & Readiness
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'trust' ? 'active' : ''}`}
+          onClick={() => setActiveTab('trust')}
+        >
+          🔑 Identity & Trust
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'relay' ? 'active' : ''}`}
+          onClick={() => setActiveTab('relay')}
+        >
+          🔄 Relay Mesh Queue
+        </button>
+        <button
+          className={`nav-tab-item ${activeTab === 'audit' ? 'active' : ''}`}
+          onClick={() => setActiveTab('audit')}
+        >
+          📜 Cryptographic Audit Ledger
+        </button>
+      </nav>
+
+      {/* Main Workspace Body */}
+      <main style={{ flex: 1, paddingBottom: '32px' }}>
         {/* Scenario Views */}
         {activeTab === 'rescue' && (
           <RescueView
@@ -527,9 +520,54 @@ function App() {
             currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
           />
         )}
+        {activeTab === 'airgap' && (
+          <AirGapView
+            bridge={defaultAcousticBridge}
+            onSendPayload={sendScenarioPayload}
+            currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
+          />
+        )}
+        {activeTab === 'trace' && (
+          <TraceView
+            bridge={defaultAcousticBridge}
+            onSendPayload={sendScenarioPayload}
+            currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
+          />
+        )}
+
+        {/* Audio Visualizer Standalone View */}
+        {activeTab === 'visualizer' && (
+          <div className="scenario-view">
+            <AudioVisualizerView
+              audio={link.current}
+              diagnostics={diagnostics}
+              isSimulation={mode === 'simulation'}
+            />
+          </div>
+        )}
+
+        {/* Cryptographic Identity & Trust */}
+        {activeTab === 'trust' && localIdentity && (
+          <TrustView localIdentity={localIdentity} />
+        )}
+
+        {/* Multi-Hop Relay Mesh */}
+        {activeTab === 'relay' && (
+          <RelayQueueView
+            bridge={defaultAcousticBridge}
+            onSendPayload={sendScenarioPayload}
+            currentDeviceId={localIdentity?.id || 'NODE-LOCAL'}
+          />
+        )}
+
+        {/* Cryptographic Audit Ledger */}
+        {activeTab === 'audit' && (
+          <AuditView />
+        )}
+
         {/* Classic Modem Link & 3D Instrument View */}
         {activeTab === 'transceiver' && (
-          <div className="transceiver-view">
+          <div style={{ marginTop: '24px' }}>
             <div className="heading">
               <div>
                 <h2>Connect through sound.</h2>
@@ -545,7 +583,7 @@ function App() {
               </div>
             </div>
 
-            <div className="console-grid">
+            <div className="console-grid" id="workspace" tabIndex={-1}>
               <div className="task-column">
                 <section className="card setup">
                   <div className="card-heading">
@@ -707,42 +745,42 @@ function App() {
 
                 {busy && <p className="action-state">{busy}</p>}
                 {error && <div className="error" role="alert"><strong>Link needs attention</strong><p>{error} {hint}</p></div>}
-
-                <section className="card results">
-                  <div className="card-heading"><h2>Results</h2><span className="mono">{receipts.length} entries</span></div>
-                  <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">
-                    {receipts.length ? receipts.map(item => (
-                      <article key={item.id} data-origin={item.source.startsWith('MICROPHONE / VERIFIED') ? 'verified' : item.source.includes('SIMULATION') ? 'sim' : 'fixture'}>
-                        <div><span>{item.source}</span><time>{item.time}</time></div>
-                        {item.file && item.file.kind !== 'text' ? (
-                          <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)} />
-                        ) : (
-                          <HumanReadableReceipt
-                            text={item.text}
-                            onOpenRescue={() => setActiveTab('rescue')}
-                          />
-                        )}
-                      </article>
-                    )) : (
-                      <div className="empty"><strong>No results yet</strong><p>{mode === 'microphone' ? 'Verified microphone transfers appear here.' : 'Run a simulation to decode generated audio.'}</p></div>
-                    )}
-                  </div>
-                </section>
               </div>
 
-              <div className="task-column">
-                <SignalView
-                  key={mode}
-                  frame={frame}
-                  engagement={engagement}
-                  engaging={!!sendAbort.current && !error}
-                  live={playing || listening || !!sendAbort.current}
-                  receiving={role === 'receive'}
-                  verified={!busy && !error && (session?.phase === 'completed' || session?.phase === 'received')}
-                  caption={playing ? 'Speaker playback' : awaitingReply && running && !session?.receive ? 'Waiting for acknowledgement' : listening ? 'Microphone open' : physical ? 'Physical Audio' : 'Simulation PCM'}
-                />
-                <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
-              </div>
+              <SignalView
+                key={mode}
+                frame={frame}
+                engagement={engagement}
+                engaging={!!sendAbort.current && !error}
+                live={playing || listening || !!sendAbort.current}
+                receiving={role === 'receive'}
+                verified={!busy && !error && (session?.phase === 'completed' || session?.phase === 'received')}
+                caption={playing ? 'Speaker playback' : awaitingReply && running && !session?.receive ? 'Waiting for acknowledgement' : listening ? 'Microphone open' : physical ? 'Physical Audio' : 'Simulation PCM'}
+              />
+            </div>
+
+            <div className="workspace">
+              <SessionMonitor previewRef={setRelayPreview} profile={physical && speedMode === "fastest" ? "Audible Fastest" : "Audible Fast"} session={session} events={packets} progress={progress} simulated={!physical} estimate={session?.receive ? undefined : initialEta} />
+              <section className="card results">
+                <div className="card-heading"><h2>Results</h2><span className="mono">{receipts.length} entries</span></div>
+                <p className="fine">A checksum verifies integrity, not sender identity.</p><div className="inbox" aria-live="polite">
+                  {receipts.length ? receipts.map(item => (
+                    <article key={item.id} data-origin={item.source.startsWith('MICROPHONE / VERIFIED') ? 'verified' : item.source.includes('SIMULATION') ? 'sim' : 'fixture'}>
+                      <div><span>{item.source}</span><time>{item.time}</time></div>
+                      {item.file && item.file.kind !== 'text' ? (
+                        <ReceivedFile item={item.file} preview={previewId === item.id} select={() => setPreviewId(previewId === item.id ? undefined : item.id)} />
+                      ) : (
+                        <HumanReadableReceipt
+                          text={item.text}
+                          onNavigateTab={tab => setActiveTab(tab)}
+                        />
+                      )}
+                    </article>
+                  )) : (
+                    <div className="empty"><strong>No results yet</strong><p>{mode === 'microphone' ? 'Verified microphone transfers appear here.' : 'Run a simulation to decode generated audio.'}</p></div>
+                  )}
+                </div>
+              </section>
             </div>
 
             {running && session && session.retries >= 2 && <p className="transfer-retry-note">Still retrying. Check that the peer is listening and that its speaker can reach this microphone.</p>}
@@ -810,9 +848,9 @@ function App() {
                 <section className="fixtures">
                   <h2>Diagnostic audio</h2>
                   <p>Export the latest outgoing packet or inspect a local WAV. Record a five-second microphone clip only when needed. Export saves a WAV. Discard or stop listening to clear the clip from memory.</p>
-                  <div className="actions wav-actions">
+                  <div className="actions">
                     <button disabled={!fixture || !!busy} onClick={() => exportFixture()}>Export WAV</button>
-                    <label className="wav-import">Import WAV
+                    <label>Import WAV
                       <input type="file" accept=".wav,audio/wav" disabled={!!busy} onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void run('Decoding WAV…', () => importFixture(f)); }} />
                     </label>
                   </div>
@@ -846,15 +884,9 @@ function App() {
             </section>
           </div>
         )}
-      </div>
-
-          </div>
-        </div>
-      </section>
       </main>
-      <Footer/>
-      <TransferConfirmation receipt={confirmations[0]} pending={confirmations.length}
-        onDismiss={() => setConfirmations(items => items.slice(1))} />
+
+      </div></section><Footer/>
     </div>
   );
 }

@@ -60,7 +60,7 @@ export function RelayQueueView({ bridge, onSendPayload, currentDeviceId }: Relay
         </div>
       </div>
 
-      <div className={statusMessage ? "status-banner info" : undefined} role="status">{statusMessage}</div>
+      {statusMessage && <div className="status-banner info">{statusMessage}</div>}
 
       <div className="table-section">
         <h3>Pending Outgoing Relay Queue ({pendingRelays.length})</h3>
@@ -78,7 +78,7 @@ export function RelayQueueView({ bridge, onSendPayload, currentDeviceId }: Relay
                 <h4 className="report-title">{r.envelope.messageId}</h4>
                 <p>Origin: <strong>{r.envelope.originDeviceId}</strong></p>
                 <div className="digest-box">
-                  <code>{r.envelope.payloadDigestSha256}</code>
+                  <code>{r.envelope.payloadDigestSha256.slice(0, 24)}...</code>
                 </div>
                 <div className="report-card-footer">
                   <button className="btn-primary" onClick={() => handleForward(r)}>

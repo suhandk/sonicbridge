@@ -117,21 +117,16 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
           <p className="scenario-tagline">"Secure data exchange without network connectivity."</p>
         </div>
         <div className="scenario-actions">
-          <button className="btn-secondary" onClick={() => {
-            if (window.confirm('Replace locally saved configuration packages with sample data?')) {
-              defaultAirGapState.resetDemo();
-              setStatusMessage('Sample data restored.');
-            }
-          }}>
+          <button className="btn-secondary" onClick={() => defaultAirGapState.resetDemo()}>
             Load Demo Preset
           </button>
-          <button className="btn-primary" aria-expanded={isComposing} onClick={() => setIsComposing(!isComposing)}>
+          <button className="btn-primary" onClick={() => setIsComposing(!isComposing)}>
             {isComposing ? 'Cancel Compose' : '+ Create Config Package'}
           </button>
         </div>
       </div>
 
-      <div className={statusMessage ? "status-banner info" : undefined} role="status">{statusMessage}</div>
+      {statusMessage && <div className="status-banner info">{statusMessage}</div>}
 
       {/* Security Dashboard */}
       <div className="dashboard-metrics">
@@ -163,8 +158,8 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
           <h3>Create Signed Configuration Package</h3>
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="config-asset">Target Industrial Asset</label>
-              <select id="config-asset" value={selectedAsset} onChange={e => setSelectedAsset(e.target.value)}>
+              <label>Target Industrial Asset</label>
+              <select value={selectedAsset} onChange={e => setSelectedAsset(e.target.value)}>
                 {assets.map(a => (
                   <option key={a.assetId} value={a.assetId}>
                     {a.assetId} - {a.machineName} ({a.currentConfigVersion})
@@ -173,8 +168,8 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
               </select>
             </div>
             <div className="form-group">
-              <label htmlFor="config-version">New Config Version</label>
-              <input id="config-version"
+              <label>New Config Version</label>
+              <input
                 type="text"
                 value={version}
                 onChange={e => setVersion(e.target.value)}
@@ -184,8 +179,8 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
           </div>
 
           <div className="form-group">
-            <label htmlFor="config-title">Package Title</label>
-            <input id="config-title"
+            <label>Package Title</label>
+            <input
               type="text"
               placeholder="e.g. Turbine Harmonic Damper Calibration"
               value={packageName}
@@ -195,8 +190,8 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
           </div>
 
           <div className="form-group">
-            <label htmlFor="config-description">Package Description & Justification</label>
-            <input id="config-description"
+            <label>Package Description & Justification</label>
+            <input
               type="text"
               placeholder="Engineering justification for parameter changes..."
               value={description}
@@ -205,8 +200,8 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
           </div>
 
           <div className="form-group">
-            <label htmlFor="config-payload">Configuration Payload (JSON / Parameter Map)</label>
-            <textarea id="config-payload"
+            <label>Configuration Payload (JSON / Parameter Map)</label>
+            <textarea
               rows={4}
               value={configData}
               onChange={e => setConfigData(e.target.value)}
@@ -229,35 +224,30 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
       {/* Asset Inventory Table */}
       <div className="table-section">
         <h3>Registered Critical Industrial Assets</h3>
-        <div className="table-content">
-          <p className="table-scroll-hint">Scroll sideways to see more columns.</p>
-          <div className="table-scroll" role="region" aria-label="Registered industrial assets" data-lenis-prevent tabIndex={0}>
-            <table className="console-table">
-              <thead>
-                <tr>
-                  <th>Asset ID</th>
-                  <th>Machine Name</th>
-                  <th>Category</th>
-                  <th>Location</th>
-                  <th>Active Version</th>
-                  <th>Authorized Operator</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assets.map(a => (
-                  <tr key={a.assetId}>
-                    <td><strong>{a.assetId}</strong></td>
-                    <td>{a.machineName}</td>
-                    <td><span className="badge-category">{a.category}</span></td>
-                    <td>{a.location}</td>
-                    <td><span className="version-pill">{a.currentConfigVersion}</span></td>
-                    <td>{a.authorizedOperator}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <table className="console-table">
+          <thead>
+            <tr>
+              <th>Asset ID</th>
+              <th>Machine Name</th>
+              <th>Category</th>
+              <th>Location</th>
+              <th>Active Version</th>
+              <th>Authorized Operator</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assets.map(a => (
+              <tr key={a.assetId}>
+                <td><strong>{a.assetId}</strong></td>
+                <td>{a.machineName}</td>
+                <td><span className="badge-category">{a.category}</span></td>
+                <td>{a.location}</td>
+                <td><span className="version-pill">{a.currentConfigVersion}</span></td>
+                <td>{a.authorizedOperator}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {/* Quarantine & Configuration Packages List */}
@@ -282,7 +272,7 @@ export function AirGapView({ bridge, onSendPayload, currentDeviceId }: AirGapVie
 
               <div className="digest-box">
                 <span className="digest-label">SHA-256 Digest:</span>
-                <code>{pkg.contentDigestSha256}</code>
+                <code>{pkg.contentDigestSha256.slice(0, 16)}...{pkg.contentDigestSha256.slice(-8)}</code>
               </div>
 
               <div className="config-preview">

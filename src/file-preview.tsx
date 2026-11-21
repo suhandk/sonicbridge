@@ -12,14 +12,7 @@ export function RasterPreview({ bytes, mime }: { bytes: Uint8Array; mime: string
   return url ? <img className="raster-preview" alt="Image transfer preview" src={url}/> : null;
 }
 
-export type TransferAttachment = Pick<VerifiedContent, 'kind' | 'name' | 'bytes'>;
-
-export function ReceivedFile({ item, preview, select, showSummary = true }: {
-  item: TransferAttachment;
-  preview: boolean;
-  select: () => void;
-  showSummary?: boolean;
-}) {
+export function ReceivedFile({ item, preview, select }: { item: VerifiedContent; preview: boolean; select: () => void }) {
   let image;
   if (item.kind === 'image') {
     try { image = inspectRaster(item.bytes, 512 * 512); } catch { /* Other types and larger images are download-only. */ }
@@ -29,7 +22,7 @@ export function ReceivedFile({ item, preview, select, showSummary = true }: {
     const a = document.createElement('a'); a.href = url; a.download = item.name + '.bin'; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  return <>{showSummary && <p>{item.name} · {item.bytes.length} bytes · SHA-256 verified</p>}
+  return <><p>{item.name} · {item.bytes.length} bytes · SHA-256 verified</p>
     {image && <button onClick={select}>{preview ? 'Close preview' : 'Preview image'} · {image.width} × {image.height}</button>}
     {preview && image && <RasterPreview bytes={item.bytes} mime={image.mime}/>}
     <button onClick={download}>Download as .bin</button></>;

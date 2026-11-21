@@ -225,11 +225,13 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     const span=3*w/h;
     camera.left=-span;camera.right=span;camera.updateProjectionMatrix();renderer.setSize(w,h,false);
     const compact = viewport === consolePreview;
-    const radius = compact ? .96 : mobile ? Math.min(span * .73, 1.75) : Math.min(span * .36, 2.05);
-    const moonY = compact ? -.52 : mobile ? -.25 : -.1;
+    const radius = compact ? .96 : mobile ? Math.min(span * .58, 1.12) : Math.min(span * .34, 1.73);
+    const heroHeight = hero?.offsetHeight ?? h;
+    const diskBottom = Math.min(h, heroHeight) - 66;
+    const moonY = compact ? -.52 : mobile ? 3 - (diskBottom / h) * 6 + radius : -.12;
     moon.scale.setScalar(radius);
-    moonRest.set(span * (compact ? -.38 : mobile ? -.08 : .43), moonY, 0);
-    earthRest.set(span * (compact ? .4 : .76), moonY + radius * (compact ? 1.8 : mobile ? 1.28 : 1.04), .4);
+    moonRest.set(span * (compact ? -.38 : mobile ? .14 : .49), moonY, 0);
+    earthRest.set(span * (compact ? .4 : .76), moonY + radius * (compact ? 1.8 : 1.43), .4);
     earth.scale.setScalar(compact ? .5 : earthRadius);
     orbit.scale.setScalar(radius * 1.48);
     satellite.scale.setScalar(compact ? .64 : mobile ? .32 : .48);
@@ -241,8 +243,8 @@ export function createRelay(host:HTMLDivElement, initial:VisualState, progress:(
     const now=performance.now(),still=staticFrame(),dt=Math.min((now-last)/1000,.1);last=now;
     if(!still) rotation+=dt;
     moon.rotation.y=-1.46+Math.sin(rotation*.38)*.085;stars.rotation.z=rotation*.003;
-    const scroll=still ? 0 : Math.min(1,window.scrollY/Math.max(innerHeight,1));
-    camera.zoom=viewport === consolePreview ? 1 : 1+scroll*.08;camera.updateProjectionMatrix();
+    const scroll=Math.min(1,window.scrollY/Math.max(innerHeight,1));
+    camera.zoom=viewport === consolePreview ? 1 : 1+scroll*.11;camera.updateProjectionMatrix();
     world.position.set(still?0:mouse.x*.24+.075*Math.sin(rotation*.45),still?0:mouse.y*.14+.035*Math.sin(rotation*.32),0);
     // Screen-space projection of the shared solar orbit, with compressed scale and timing.
     const solarPhase = rotation * .19;

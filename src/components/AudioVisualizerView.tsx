@@ -12,25 +12,14 @@ export function AudioVisualizerView({ audio, diagnostics, isSimulation }: AudioV
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [activeTab, setActiveTab] = useState<'spectrum' | 'waveform'>('spectrum');
 
-  const [paused, setPaused] = useState(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const listening = audio.listening;
-  const live = listening && !isSimulation;
   useEffect(() => {
-    const preference = matchMedia('(prefers-reduced-motion: reduce)');
-    const pauseOnReducedMotion = () => { if (preference.matches) setPaused(true); };
-    preference.addEventListener('change', pauseOnReducedMotion);
-    return () => preference.removeEventListener('change', pauseOnReducedMotion);
-  }, []);
-
-  useEffect(() => {
-    let animId = 0;
+    let animId: number;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const analyser = live && !paused ? audio.getAnalyser() : undefined;
-    const samples = analyser && new Uint8Array(activeTab === 'spectrum' ? analyser.frequencyBinCount : analyser.fftSize);
+    const analyser = audio.getAnalyser();
 
     const render = () => {
       const width = canvas.width;
@@ -38,11 +27,11 @@ export function AudioVisualizerView({ audio, diagnostics, isSimulation }: AudioV
       ctx.clearRect(0, 0, width, height);
 
       // Dark background
-      ctx.fillStyle = '#111216';
+      ctx.fillStyle = '#090d16';
       ctx.fillRect(0, 0, width, height);
 
       // Grid lines
-      ctx.strokeStyle = '#33363d';
+      ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 1;
       for (let x = 0; x < width; x += 40) {
         ctx.beginPath();
@@ -57,34 +46,39 @@ export function AudioVisualizerView({ audio, diagnostics, isSimulation }: AudioV
         ctx.stroke();
       }
 
-      if (analyser && samples) {
+      if (analyser && audio.listening) {
         if (activeTab === 'spectrum') {
-          analyser.getByteFrequencyData(samples);
+          const bufferLength = analyser.frequencyBinCount;
+          const dataArray = new Uint8Array(bufferLength);
+          analyser.getByteFrequencyData(dataArray);
 
-          const bars = Math.min(96, samples.length);
-          const stride = samples.length / bars;
-          const barWidth = width / bars;
-          ctx.fillStyle = '#ff865b';
-          for (let bar = 0; bar < bars; bar++) {
-            const start = Math.floor(bar * stride);
-            const end = Math.floor((bar + 1) * stride);
-            let peak = 0;
-            for (let bin = start; bin < end; bin++) peak = Math.max(peak, samples[bin]);
-            const barHeight = peak / 255 * height;
-            ctx.fillRect(bar * barWidth, height - barHeight, barWidth - 1, barHeight);
-          }
-        } else {
-          analyser.getByteTimeDomainData(samples);
-
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = '#ff865b';
-          ctx.beginPath();
-
-          const sliceWidth = width / samples.length;
+          const barWidth = (width / bufferLength) * 2.5;
           let x = 0;
 
-          for (let i = 0; i < samples.length; i++) {
-            const v = samples[i] / 128.0;
+          for (let i = 0; i < bufferLength; i++) {
+            const barHeight = (dataArray[i] / 255) * height;
+            // Cyan to Teal gradient
+            const gradient = ctx.createLinearGradient(0, height - barHeight, 0, height);
+            gradient.addColorStop(0, '#22d3ee');
+            gradient.addColorStop(1, '#0891b2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(x, height - barHeight, barWidth - 1, barHeight);
+            x += barWidth;
+          }
+        } else {
+          const bufferLength = analyser.fftSize;
+          const dataArray = new Uint8Array(bufferLength);
+          analyser.getByteTimeDomainData(dataArray);
+
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#38bdf8';
+          ctx.beginPath();
+
+          const sliceWidth = width / bufferLength;
+          let x = 0;
+
+          for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0;
             const y = (v * height) / 2;
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
@@ -93,20 +87,35 @@ export function AudioVisualizerView({ audio, diagnostics, isSimulation }: AudioV
           ctx.lineTo(width, height / 2);
           ctx.stroke();
         }
+      } else {
+        // Idle display
+        ctx.fillStyle = '#64748b';
+        ctx.font = '12px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(
+          isSimulation
+            ? 'LOCAL PCM SIMULATION ACTIVE — HARDWARE MICROPHONE BYPASSED'
+            : audio.listening
+            ? 'LISTENING — WAITING FOR ACOUSTIC SIGNAL'
+            : 'MICROPHONE INACTIVE — TAP "START AUDIO" TO MONITOR LIVE SPECTRUM',
+          width / 2,
+          height / 2
+        );
       }
 
-      if (analyser) animId = requestAnimationFrame(render);
+      animId = requestAnimationFrame(render);
     };
 
     render();
     return () => cancelAnimationFrame(animId);
-  }, [audio, activeTab, live, paused]);
+  }, [audio, activeTab, isSimulation]);
 
   return (
     <div className="audio-visualizer-container">
       <div className="visualizer-header">
         <div className="visualizer-title">
-          <h2>Audio spectrum &amp; waveform</h2>
+          <span className="live-indicator" style={{ background: audio.listening ? '#10b981' : '#f59e0b' }} />
+          <span>ACOUSTIC SPECTRUM & WAVEFORM ANALYZER</span>
           <span className="mode-badge-pill">
             {isSimulation ? 'SIMULATION · LOCAL PCM' : 'PHYSICAL AUDIO · LIVE MICROPHONE'}
           </span>
@@ -114,26 +123,20 @@ export function AudioVisualizerView({ audio, diagnostics, isSimulation }: AudioV
         <div className="visualizer-tabs">
           <button
             className={`btn-subtab ${activeTab === 'spectrum' ? 'active' : ''}`}
-            aria-pressed={activeTab === 'spectrum'}
             onClick={() => setActiveTab('spectrum')}
           >
             FFT Spectrum
           </button>
           <button
             className={`btn-subtab ${activeTab === 'waveform' ? 'active' : ''}`}
-            aria-pressed={activeTab === 'waveform'}
             onClick={() => setActiveTab('waveform')}
           >
             Oscilloscope
           </button>
-          <button onClick={() => setPaused(!paused)}>{paused ? 'Resume live plot' : 'Pause live plot'}</button>
         </div>
       </div>
 
-      <p className="visualizer-status">{isSimulation ? 'Local simulation bypasses the microphone.'
-        : !listening ? 'Open the microphone in the transceiver to see a live signal.'
-        : paused ? 'Live plot paused.' : 'Showing live microphone input.'}</p>
-      <canvas role="img" aria-label={activeTab === 'spectrum' ? 'Microphone frequency spectrum' : 'Microphone waveform'} ref={canvasRef} width={640} height={160} className="visualizer-canvas" />
+      <canvas ref={canvasRef} width={640} height={160} className="visualizer-canvas" />
 
       {/* Device Readiness Checklist */}
       <div className="readiness-checklist">

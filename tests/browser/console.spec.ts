@@ -41,9 +41,6 @@ test('physical sender UI confirms a PCM peer through synthetic microphone captur
   await page.getByRole('button',{name:'Start Audio',exact:true}).click();
   await page.getByLabel('What would you like to send?').fill('Acoustic sender check');
   await page.getByRole('button',{name:'Start transmission'}).click();
-  const confirmation = page.getByRole('dialog', { name: 'Transfer delivered' });
-  await expect(confirmation).toContainText('Acoustic sender check', { timeout: 50000 });
-  await confirmation.getByRole('button', { name: 'Done' }).click();
   const monitor=page.getByLabel('Transfer monitor');
   await expect(monitor).toContainText('Delivery confirmed',{timeout:50000});
   await expect(page.locator('body')).toHaveAttribute('data-peer-received','Acoustic sender check');
@@ -107,7 +104,6 @@ test('engagement accepts one send and can be cancelled immediately', async ({ pa
     (button as HTMLButtonElement).click();
   }));
   await expect(page.getByRole('alert')).toContainText(/cancel/i);
-  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.locator('.inbox article')).toHaveCount(0);
   await expect(send).toBeEnabled();
   await send.focus();

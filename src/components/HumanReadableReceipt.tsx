@@ -3,9 +3,11 @@ import type { ConfigPackage } from '../types/airgap';
 import type { ShipmentRecord, HandoverEvent } from '../types/trace';
 import type { SonicEnvelope } from '../types/envelope';
 
+export type TabType = 'rescue' | 'airgap' | 'trace' | 'transceiver' | 'trust' | 'relay' | 'audit' | 'visualizer';
+
 interface HumanReadableReceiptProps {
   text: string;
-  onOpenRescue?: () => void;
+  onNavigateTab?: (tab: TabType) => void;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -42,7 +44,7 @@ function hasRenderablePayload(envelope: Record<string, unknown>) {
   }
 }
 
-export function HumanReadableReceipt({ text, onOpenRescue }: HumanReadableReceiptProps) {
+export function HumanReadableReceipt({ text, onNavigateTab }: HumanReadableReceiptProps) {
 
   // Try parsing the text as a SonicEnvelope or structured JSON
   let parsedEnvelope: SonicEnvelope | null = null;
@@ -163,12 +165,12 @@ export function HumanReadableReceipt({ text, onOpenRescue }: HumanReadableReceip
           </div>
         </div>
 
-        {onOpenRescue && (
+        {onNavigateTab && (
           <div className="receipt-tab-action">
             <button
               type="button"
               className="btn-open-scenario"
-              onClick={onOpenRescue}
+              onClick={() => onNavigateTab('rescue')}
             >
               🚨 Open in Rescue Mesh Dashboard →
             </button>
@@ -226,9 +228,21 @@ export function HumanReadableReceipt({ text, onOpenRescue }: HumanReadableReceip
             <span><strong>Package details from received text</strong></span>
           </div>
           <div className="prov-details mono">
-            <span>Asset SHA-256 Digest: {pkg.contentDigestSha256 ?? 'Unavailable'}</span>
+            <span>Asset SHA-256 Digest: {pkg.contentDigestSha256?.slice(0, 16)}...</span>
           </div>
         </div>
+
+        {onNavigateTab && (
+          <div className="receipt-tab-action">
+            <button
+              type="button"
+              className="btn-open-scenario"
+              onClick={() => onNavigateTab('airgap')}
+            >
+              Open Air-Gap View →
+            </button>
+          </div>
+        )}
 
         <details className="raw-details-toggle">
           <summary>Technical Envelope JSON (click to inspect wire payload)</summary>
@@ -297,6 +311,18 @@ export function HumanReadableReceipt({ text, onOpenRescue }: HumanReadableReceip
             <span>Holder Device: <code>{payload.currentHolderDeviceId || payload.toDeviceId || parsedEnvelope.originDeviceId}</code></span>
           </div>
         </div>
+
+        {onNavigateTab && (
+          <div className="receipt-tab-action">
+            <button
+              type="button"
+              className="btn-open-scenario"
+              onClick={() => onNavigateTab('trace')}
+            >
+              📦 Inspect Custody Chain in Trace View →
+            </button>
+          </div>
+        )}
 
         <details className="raw-details-toggle">
           <summary>Technical Envelope JSON (click to inspect wire payload)</summary>

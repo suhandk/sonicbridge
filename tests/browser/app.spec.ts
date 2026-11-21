@@ -1,4 +1,3 @@
-import { packContent } from '../../src/content';
 import { test, expect, chromium } from '@playwright/test';
 import { createRequire } from 'node:module';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -6,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createModem, type ModemFactory } from '../../src/modem';
 import { writeWav } from '../../src/wav';
-import { contentMask, crc32, encodePacket, finishBytes, Kind, offerBytes } from '../../src/protocol';
+import { crc32, encodePacket, finishBytes, Kind, offerBytes } from '../../src/protocol';
 test('local runtime, Unicode simulation, WAV export/import, and permission denial', async ({ page, baseURL }) => {
   const errors: string[] = [], foreign: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -19,10 +18,6 @@ test('local runtime, Unicode simulation, WAV export/import, and permission denia
   const message = 'नमस्ते 🌉 café 日本語';
   await page.getByLabel('What would you like to send?').fill(message);
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
-  const confirmation = page.getByRole('dialog', { name: 'Simulation complete' });
-  await expect(confirmation).toContainText(message);
-  await page.keyboard.press('Escape');
-  await expect(confirmation).toHaveCount(0);
   await expect(page.locator('.inbox article')).toContainText(message);
   await expect(page.locator('.inbox article')).toContainText('SIMULATION / PCM');
   await page.locator('summary').filter({ hasText: 'Technical details' }).click();
@@ -58,15 +53,11 @@ test(`real AudioWorklet and worker decode WAV-fed microphone at ${graphRate} Hz`
   const file = join(dir, 'mic.wav');
   const modem = await createModem(48000, createRequire(import.meta.url)('ggwave') as ModemFactory);
   const message = 'Microphone नमस्ते 🌉';
-  const payload = new TextEncoder().encode(message);
-  const manifestTransfer = graphRate === 48000;
-  const data = manifestTransfer ? packContent('text', 'message.txt', payload) : payload;
-  const checksum = crc32(data);
+  const data = new TextEncoder().encode(message), checksum = crc32(data);
   const identity = { session: 41, transfer: 42 };
-  const dataPacket = { ...identity, kind: Kind.DATA, seq: 0, payload: data };
   const packets = [
-    encodePacket({ ...identity, kind: manifestTransfer ? Kind.CONTENT_HELLO : Kind.HELLO, seq: 0, payload: offerBytes({ total: data.length, checksum, chunk: 120, maxTransfer: 4096 }) }),
-    encodePacket({ ...dataPacket, payload: manifestTransfer ? contentMask(dataPacket) : data }),
+    encodePacket({ ...identity, kind: Kind.HELLO, seq: 0, payload: offerBytes({ total: data.length, checksum, chunk: 120, maxTransfer: 4096 }) }),
+    encodePacket({ ...identity, kind: Kind.DATA, seq: 0, payload: data }),
     encodePacket({ ...identity, kind: Kind.FIN, seq: 1, payload: finishBytes(data.length, checksum) }),
   ];
   const waves = packets.map(p => modem.encodeBytes(p)); modem.dispose();
@@ -92,11 +83,6 @@ test(`real AudioWorklet and worker decode WAV-fed microphone at ${graphRate} Hz`
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Stop listening' })).toBeEnabled();
   await expect(page.locator('.inbox article').first()).toContainText(message, { timeout: 45000 });
-  const confirmation = page.getByRole('dialog', { name: 'Transfer received' });
-  await expect(confirmation).toContainText(message);
-  await expect(confirmation).toContainText('Elapsed time');
-  await expect(confirmation).toContainText(`${payload.length} bytes`);
-  await confirmation.getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('.inbox article').first()).toContainText('MICROPHONE / VERIFIED');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Verified at receiver');
   await expect(page.locator('.scope canvas')).toBeVisible();
