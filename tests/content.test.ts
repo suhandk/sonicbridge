@@ -30,6 +30,11 @@ it('accounts for all framed control and data bytes in estimates', () => {
   expect(estimate.count).toBe(2);
   expect(estimate.seconds).toBeGreaterThan(estimate.wireBytes * 8 / 187.5);
 });
+it('Turbo fastest mode significantly reduces transfer airtime estimate', () => {
+  const standard = estimateTransfer(500, undefined, false, false);
+  const turbo = estimateTransfer(500, undefined, false, true);
+  expect(turbo.seconds).toBeLessThan(standard.seconds * 0.65);
+});
 it('refuses HTML, SVG, truncated and oversized raster headers', () => {
   for (const text of ['<html>', '<svg/>']) expect(() => inspectRaster(new TextEncoder().encode(text), 512 ** 2)).toThrow();
   const png = Buffer.from('89504e470d0a1a0a0000000d49484452ffffffffffffffff000000000000000000','hex');

@@ -8,7 +8,7 @@ interface Parameters {
 export interface GgModule {
   getDefaultParameters(): Parameters;
   SampleFormat: { GGWAVE_SAMPLE_FORMAT_F32: EnumValue };
-  ProtocolId: { GGWAVE_PROTOCOL_AUDIBLE_FAST: EnumValue };
+  ProtocolId: { GGWAVE_PROTOCOL_AUDIBLE_FAST: EnumValue; GGWAVE_PROTOCOL_AUDIBLE_FASTEST: EnumValue; [key: string]: unknown };
   init(parameters: Parameters): number;
   free(instance: number): void;
   encode(instance: number, text: string | Uint8Array, protocol: EnumValue, volume: number): Int8Array;
@@ -17,9 +17,12 @@ export interface GgModule {
 }
 export type ModemFactory = (options?: { print?: (line: string) => void }) => Promise<GgModule>;
 declare global { interface Window { ggwave_factory?: ModemFactory } }
+export type ModemProtocol = 'fast' | 'fastest';
+
 export interface Modem {
   readonly sampleRate: number;
   readonly maxMessageBytes: number;
+  protocol: ModemProtocol;
   encode(text: string): Float32Array;
   decode(pcm: Float32Array): string[];
   encodeBytes(bytes: Uint8Array): Float32Array;
@@ -53,8 +56,11 @@ export async function createModem(sampleRate: number, factory = window.ggwave_fa
   const pending = new Float32Array(4096);
   let pendingLength = 0;
   const check = () => { if (disposed) throw new Error('Modem has been closed.'); };
+  let protocol: ModemProtocol = 'fast';
   const modem: Modem = {
     sampleRate, maxMessageBytes: MAX_BYTES,
+    get protocol() { return protocol; },
+    set protocol(p: ModemProtocol) { protocol = p; },
     encode(text) {
       return modem.encodeBytes(new TextEncoder().encode(text));
     },
@@ -62,7 +68,10 @@ export async function createModem(sampleRate: number, factory = window.ggwave_fa
       check();
       if (!data.length || data.length > MAX_BYTES) throw new Error(`Message must contain 1–${MAX_BYTES} bytes (UTF-8 for text).`);
       // Embind std::string accepts Uint8Array, preserving NUL and bytes >= 0x80.
-      const raw = g.encode(instance, data, g.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FAST, 25);
+      const protoId = protocol === 'fastest' && g.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FASTEST
+        ? g.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FASTEST
+        : g.ProtocolId.GGWAVE_PROTOCOL_AUDIBLE_FAST;
+      const raw = g.encode(instance, data, protoId, 25);
       if (!raw.length || raw.byteLength % 4) throw new Error('Modem returned an invalid waveform.');
       // Emscripten returns borrowed memory, invalidated by the next call: copy immediately.
       const bytes = Uint8Array.from(raw);
