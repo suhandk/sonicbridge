@@ -84,7 +84,7 @@ export function AuditView() {
         </div>
       </div>
 
-      {statusMessage && <div className="status-banner info">{statusMessage}</div>}
+      <div className={statusMessage ? "status-banner info" : undefined} role="status">{statusMessage}</div>
 
       {integrityStatus.checked && (
         <div className={`status-banner ${integrityStatus.valid ? 'ok' : 'critical'}`}>
@@ -97,37 +97,42 @@ export function AuditView() {
         {entries.length === 0 ? (
           <p className="empty-notice">No audit records logged yet.</p>
         ) : (
-          <table className="console-table audit-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Time</th>
-                <th>Event Type</th>
-                <th>Device ID</th>
-                <th>Details</th>
-                <th>Hash Pointer</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map(e => (
-                <tr key={e.index}>
-                  <td><strong>{e.index}</strong></td>
-                  <td>{new Date(e.timestamp).toLocaleTimeString()}</td>
-                  <td><span className="badge-category">{e.eventType}</span></td>
-                  <td><code>{e.deviceId}</code></td>
-                  <td>
-                    <pre className="inline-json">{JSON.stringify(e.details)}</pre>
-                  </td>
-                  <td>
-                    <div className="hash-pointer-cell">
-                      <span>Prev: <code>{e.prevHash.slice(0, 10)}...</code></span>
-                      <span>This: <code>{e.hash.slice(0, 10)}...</code></span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-content">
+            <p className="table-scroll-hint">Scroll sideways to see more columns.</p>
+            <div className="table-scroll" role="region" aria-label="Audit records" data-lenis-prevent tabIndex={0}>
+              <table className="console-table audit-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Time</th>
+                    <th>Event Type</th>
+                    <th>Device ID</th>
+                    <th>Details</th>
+                    <th>Hash Pointer</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map(e => (
+                    <tr key={e.index}>
+                      <td><strong>{e.index}</strong></td>
+                      <td>{new Date(e.timestamp).toLocaleTimeString()}</td>
+                      <td><span className="badge-category">{e.eventType}</span></td>
+                      <td><code>{e.deviceId}</code></td>
+                      <td>
+                        <pre className="inline-json">{JSON.stringify(e.details)}</pre>
+                      </td>
+                      <td>
+                        <div className="hash-pointer-cell">
+                          <span>Prev: <code>{e.prevHash}</code></span>
+                          <span>This: <code>{e.hash}</code></span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
     </div>
