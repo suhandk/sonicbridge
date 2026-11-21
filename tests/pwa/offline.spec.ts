@@ -20,7 +20,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(inventory.assets).toContain('./vendor/ggwave.js');
   expect(inventory.assets).toContain('./capture-worklet.js');
   expect(inventory.assets.some(path => path.endsWith('.css'))).toBe(true);
-  expect(inventory.assets.filter(path => path.includes('/lunar/') && path.endsWith('.webp'))).toHaveLength(4);
+  expect(inventory.assets.filter(path => path.includes('/lunar/') && path.endsWith('.webp'))).toHaveLength(5);
   expect(inventory.assets.some(path => path.endsWith('.woff2'))).toBe(true);
   const sceneChunk = inventory.assets.find(path => /moon-relay-.*\.js$/.test(path));
   expect(sceneChunk).toBeTruthy();
