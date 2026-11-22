@@ -45,6 +45,8 @@ Fixed overhead is `16 header + 4 CRC = 20 bytes`. Safe DATA payload is `actual d
 | CONTENT_DATA_ALT | 10 | Same as DATA | Alternate whitening mask on even-numbered attempts |
 | SET_POLICY | 11 | Active content DATA sequence | One byte, Balanced (0) or Robust (1) |
 | POLICY_ACK | 12 | Matching switch sequence | Echo of the accepted policy |
+| RANGE_TIMING | 13 | 0 | Receiver interval, unsigned 32-bit microseconds |
+| RANGE_RESULT | 14 | 0 | Sender estimate, unsigned 32-bit millimetres |
 | CANCEL | 7 | 0 emitted; any sequence accepted for matching active identity | Empty |
 
 Body CRC32 covers the complete, ordered raw transfer body, independent of packet CRCs. The receiver agrees to the smaller offered/local DATA capacity. CAPS must not increase the sender's offered DATA limit and must support the proposed body length. Both sides enforce `1 ≤ total ≤ 4096 bytes` and `N = ceil(total / selected DATA bytes) ≤ 128`. HELLO's maximum-transfer offer must be at least total and at most 4096. Invalid or unsupported CAPS is ignored; negotiation eventually fails within the retry budget.
@@ -139,3 +141,10 @@ For N DATA chunks, model 4 + 2N packets. Framed bytes equal manifest + content +
 Both pacing policies use baseline Audible Fast. SET_POLICY and POLICY_ACK travel acoustically before dependent DATA. The negotiation rules, timeout recovery and exact overhead are in [ADAPTIVE.md](ADAPTIVE.md).
 
 The paired PCM experiment imposes four DATA attempts per sequence, six extra sender requests across the whole trial and a 120 s wall on the virtual clock. These are experiment controls outside the wire format. Losing the last FIN_ACK can leave a verified receiver receipt while the sender terminates unconfirmed. The ledger therefore reports verified and sender-confirmed payload bytes separately. [Evaluation](BENCHMARKS.md)
+
+
+## Post-transfer acoustic ranging
+
+After a physical content transfer, a sender that receives FIN_ACK can launch a 32 ms audible chirp. A recent verified receiver responds with a distinct 32 ms chirp after acoustic turnaround. The chirp pair is selected using the completed session and transfer IDs. Both devices timestamp the chirps against their own microphone samples, including local playback. Only the receiver interval and the resulting estimate travel as ggwave frames, using the completed transfer identity and the usual packet CRC. Sequence zero is required by the ranging exchange. Ranging frames never satisfy a transport acknowledgement.
+
+The estimate multiplies the sender interval minus the receiver interval by 343 m/s and divides by two. This cancels the receiver turnaround and clock offsets. Local speaker-to-microphone geometry, echoes and audio processing can bias the estimate. The app rejects results outside 0.15–12 m and bounds the optional exchange to 12 seconds. These are software limits. Physical range and accuracy remain unmeasured. A peer without ranging support can still verify the transfer. Its lack of a ranging reply leaves the distance unavailable.

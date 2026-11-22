@@ -6,3 +6,4 @@ playwright-report/
 .certs/
 hosting/*.zip
 /public/docs/
+/public/speech-runtime/

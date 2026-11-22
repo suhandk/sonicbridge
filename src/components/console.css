@@ -1537,3 +1537,86 @@ button.btn-small {
   white-space: pre-wrap;
   word-break: break-all;
 }
+
+/* Adaptive acoustic range */
+.acoustic-range-expander .phase-pill {
+  color: var(--secondary);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 5px 10px;
+  font: 12px/1.4 var(--mono);
+}
+.acoustic-range-expander :is(.phase-expanding, .phase-max_power, .text-red) { color: var(--warning); }
+.acoustic-range-expander .phase-found { color: var(--verified); }
+.acoustic-range-expander .phase-no_receiver { color: var(--failure); }
+.range-visualizer-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+@media (max-width: 740px) {
+  .range-visualizer-layout { grid-template-columns: minmax(0, 1fr); }
+}
+.radar-container, .metric-tier-gauge, .range-stat-box, .range-status-banner {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.radar-container {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  overflow: hidden;
+  background: var(--space);
+}
+.radar-circle-canvas {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  aspect-ratio: 380 / 260;
+}
+.range-metrics-panel, .range-stat-grid { display: grid; gap: 8px; }
+.range-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.metric-tier-gauge, .range-stat-box, .range-status-banner {
+  padding: 10px 12px;
+  background: var(--track);
+}
+.tier-header { display: flex; flex-wrap: wrap; gap: 2px 8px; justify-content: space-between; margin-bottom: 8px; }
+.tier-header, .stat-label { font-size: .76rem; color: var(--secondary); }
+.tier-header strong, .stat-detail { color: var(--white); }
+.tier-segments-bar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.tier-segment {
+  display: grid;
+  place-items: center;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  font: 11px var(--mono);
+  color: var(--secondary);
+}
+.tier-segment.active {
+  color: var(--space);
+  background: var(--orange);
+  border-color: var(--orange);
+  font-weight: 700;
+}
+.range-stat-box { display: grid; gap: 2px; }
+.range-stat-box.full-width { grid-column: 1 / -1; }
+.stat-value { font: 700 .94rem var(--mono); color: var(--orange); }
+.stat-detail { font: .76rem var(--mono); }
+.range-status-banner {
+  color: var(--secondary);
+  font-size: .82rem;
+  line-height: 1.45;
+  border-inline-start: 3px solid var(--orange);
+}
+.range-status-banner:is(.status-expanding, .status-max_power) { border-inline-start-color: var(--warning); }
+.range-status-banner.status-found { border-inline-start-color: var(--verified); }
+.range-status-banner.status-no_receiver { border-inline-start-color: var(--failure); }
+.range-actions-bar, .test-sim-group { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.range-actions-bar { padding-top: 12px; border-top: 1px solid var(--border); }
+.range-actions-bar button { min-height: 44px; padding: 8px 14px; font-size: .82rem; }
+.console-root.lunar .range-actions-bar .btn-danger:enabled { color: var(--failure); border-color: var(--failure); }
+.range-actions-bar .btn-sim-action { font: .75rem var(--mono); }

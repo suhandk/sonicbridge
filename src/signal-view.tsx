@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { Transducer } from './lunar/transducer';
 
 export interface SignalFrame { pcm: Float32Array; rate: number; source: string; position?: () => number | undefined }
 const N = 64;
@@ -62,12 +63,7 @@ export function SignalView({ frame, engagement, engaging, live, receiving, verif
   if (live && display && !paused) for (const value of display.pcm) peak = Math.max(peak, Math.abs(value));
   return <section className="scope" aria-label="Signal monitor">
     <div className="instrument-title"><h2>Acoustic transducer</h2><span>{caption}</span></div>
-    <div className="housing" data-receive={receiving} data-verified={verified} aria-hidden="true">
-      <div key={engagement} className={'driver'+(engaging ? ' engaging' : '')}>
-        <div className="rim"><div className="surround"><div className="diaphragm" style={{scale:1+peak*.035}}><div className="dustcap"/></div></div></div>
-        <i className="screw nw"/><i className="screw ne"/><i className="screw sw"/><i className="screw se"/>
-      </div>
-    </div>
+    <Transducer {...{ peak, verified, receiving, engagement, engaging }}/>
     <div className="scope-head"><h2>Signal monitor</h2><span className="mono">{display?.source ?? 'Standby'}</span></div>
     <div className="plot">{display ? <canvas ref={canvas} width={512} height={100} role="img" aria-label={spectrum ? 'Spectrogram of sampled PCM' : 'Waveform of sampled PCM'}/> : <span>Waiting for audio</span>}</div>
     <div className="scope-axis mono"><span>{spectrum ? 'Frequency · 0 to Nyquist' : 'Amplitude · ±1 FS'}</span><span>{display ? `${(1000*display.pcm.length/display.rate).toFixed(1)} ms · ${display.rate} Hz` : '— ms'}</span></div>

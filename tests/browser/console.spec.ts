@@ -62,7 +62,7 @@ test('keyboard, reduced motion and explicit five-second diagnostic export', asyn
   await expect(page.getByRole('heading',{name:'Listening for a nearby sender'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Resume plot'})).toBeVisible();
   await page.getByRole('button',{name:'Resume plot'}).click();
-  await expect(page.locator('.scope canvas')).toBeVisible();
+  await expect(page.locator('.scope .plot canvas')).toBeVisible();
   await page.locator('summary').filter({hasText:'Technical details'}).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button',{name:'Export microphone WAV'})).toHaveCount(0);

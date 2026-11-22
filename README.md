@@ -16,6 +16,8 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173). Start Audio on both devices; listen with the receiver's microphone, then transmit from the sender's speaker.
 
+In **Send → Text**, select **Speak to fill message** after starting audio. Speak in English for up to five seconds. Moonshine Tiny runs locally and appends the transcript to the editable draft. Review it, then use the existing send button. The recording stays in memory on the device. The first dictation in the production app downloads about 45 MiB of same-origin model and runtime assets after the app has installed. Use dictation once while online to cache these assets for offline use. Restore bundled model files with `npm run download:speech-model` if needed.
+
 ### Key Capabilities
 - **Real Acoustic Channel**: Sender Device Speaker ➔ Sound Waves ➔ Receiver Device Microphone ➔ Decoding ➔ Verified Application Message.
 - **Local PCM Simulation**: Switch to **Simulation · local PCM** to execute the complete protocol exchange through generated PCM without requiring physical audio hardware.

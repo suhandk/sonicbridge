@@ -23,6 +23,7 @@ export interface Events {
   state?(state: TransportState, detail: string, at: number): void;
   deliver?(bytes: Uint8Array, identity: { session: number; transfer: number }): void;
   content?(item: VerifiedContent): void;
+  rangeReady?(role: 'sender' | 'receiver', identity: { session: number; transfer: number }): void;
   controller?(snapshot: ControllerSnapshot): void;
   diagnostic?(detail: string): void;
 }
@@ -124,9 +125,11 @@ export class StopAndWait {
     let p: Packet;
     try { p = decodePacket(bytes, this.channel.maxPacketBytes); }
     catch (error) {
+      if (bytes[0] === 0x53 && bytes[1] === 0x42 && (bytes[3] === Kind.RANGE_TIMING || bytes[3] === Kind.RANGE_RESULT)) return;
       this.rejectedDuringWait = true; this.controller.decode(false);
       this.events.diagnostic?.(`Rejected acoustic packet: ${String(error)}`); return;
     }
+    if (p.kind === Kind.RANGE_TIMING || p.kind === Kind.RANGE_RESULT) return;
     this.packet('decode', p);
     this.controller.decode(true);
     try {
@@ -214,6 +217,7 @@ export class StopAndWait {
         if (item) this.events.content?.(item);
         else this.events.deliver?.(rx.buffer, { session: rx.session, transfer: rx.transfer });
         this.state('received', 'Receiver verified length and transfer CRC32. Acoustic FIN_ACK queued; sender confirmation may still be pending.');
+        if (item) this.events.rangeReady?.('receiver', {session: p.session, transfer: p.transfer});
       }
     } catch (error) { this.events.diagnostic?.(`Rejected acoustic packet: ${String(error)}`); }
   }
@@ -290,6 +294,7 @@ export class StopAndWait {
       if (tx.abort.signal.aborted) throw aborted(tx.abort.signal);
       if (options.content) confirmedBytes = owned.length - FIXED_MANIFEST - owned[4];
       this.state('completed', 'Transfer confirmed: receiver verified all bytes and its acoustic FIN_ACK arrived.');
+      if (options.content) this.events.rangeReady?.('sender', {session: tx.session, transfer: tx.transfer});
     } catch (error) {
       this.state(tx.abort.signal.aborted ? 'cancelled' : 'failed', String(error));
       // Best effort cancellation is itself acoustic and bounded to one transmission.

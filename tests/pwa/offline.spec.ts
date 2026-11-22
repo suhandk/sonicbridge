@@ -12,9 +12,13 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
     const manifest = await (await fetch('/offline-assets.json')).json();
     const missing: string[] = [];
     for (const path of manifest.assets) if (!await caches.match(new URL(path, location.href).href)) missing.push(path);
-    return { missing, assets: manifest.assets as string[] };
+    const speechIsCached = await Promise.all((manifest.optionalSpeech as string[]).map(async path => !!await caches.match(new URL(path, location.href).href)));
+    return { missing, assets: manifest.assets as string[], optionalSpeech: manifest.optionalSpeech as string[], speechIsCached };
   });
   expect(inventory.missing).toEqual([]);
+  expect(inventory.optionalSpeech.some(path => path.includes('moonshine-tiny-ONNX/onnx/'))).toBe(true);
+  expect(inventory.optionalSpeech.some(path => path.includes('speech-runtime/') && path.endsWith('.wasm'))).toBe(true);
+  expect(inventory.speechIsCached.some(Boolean)).toBe(false);
   expect(inventory.assets.some(path => path.includes('modem-worker-'))).toBe(true);
   expect(inventory.assets).toContain('./vendor/ggwave-module.mjs');
   expect(inventory.assets).toContain('./vendor/ggwave.js');
@@ -24,11 +28,21 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   expect(inventory.assets.some(path => path.endsWith('.woff2'))).toBe(true);
   const sceneChunk = inventory.assets.find(path => /moon-relay-.*\.js$/.test(path));
   expect(sceneChunk).toBeTruthy();
+  const transducerChunk = inventory.assets.find(path => /transducer-scene-.*\.js$/.test(path));
+  expect(transducerChunk).toBeTruthy();
+  async function dismissReceipt(title: string, content: string) {
+    const popup = page.getByRole('dialog', { name: title });
+    await expect(popup).toContainText(content);
+    await popup.getByRole('button', { name: 'Dismiss' }).click();
+    await expect(popup).toBeHidden();
+  }
   await context.setOffline(true);
   const offlineNavigation = await page.reload();
   expect(offlineNavigation?.fromServiceWorker()).toBe(true);
   await expect.poll(() => page.evaluate(path => performance.getEntriesByName(new URL(path, location.href).href).length, sceneChunk!)).toBeGreaterThan(0);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Data, carried by sound.');
+  await page.locator('.transducer-stage').scrollIntoViewIfNeeded();
+  await expect.poll(() => page.evaluate(path => performance.getEntriesByName(new URL(path, location.href).href).length, transducerChunk!)).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Start Audio', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Resume Audio' })).toBeEnabled();
   await page.getByRole('button', {name:'↙ Receive'}).click();
@@ -43,13 +57,15 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByLabel('Operating mode').selectOption('Robust');
   await page.getByLabel('What would you like to send?').fill('Offline नमस्ते 🌉');
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Message received', 'Offline नमस्ते 🌉');
   await expect(page.locator('.inbox article').first()).toContainText('Offline नमस्ते 🌉');
   await expect(page.getByLabel('Transfer monitor')).toContainText('Delivery confirmed');
+  await expect(page.getByLabel('Transfer monitor')).toContainText('Reference range · Under 15 m');
   await page.getByText('Packet timeline').click();
   await expect(page.locator('.timeline ol')).toContainText('FIN_ACK');
   await expect(page.locator('canvas[aria-label="Waveform of sampled PCM"]')).toBeVisible();
   await page.getByRole('button', { name: 'Spectrogram', exact: true }).click();
-  await expect(page.locator('.scope canvas')).toHaveAttribute('aria-label','Spectrogram of sampled PCM');
+  await expect(page.locator('.scope .plot canvas')).toHaveAttribute('aria-label','Spectrogram of sampled PCM');
   await page.getByText('Controller decisions').click();
   await expect(page.getByLabel('Link controller')).toContainText('Peer confirmed Robust');
   await expect(page.getByLabel('Link controller')).toContainText('confirmed content goodput');
@@ -67,6 +83,9 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByRole('button', { name: 'Use original' }).click();
   await expect(page.getByText('1 × 1 px · Original bytes')).toBeVisible();
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  const imagePopup = page.getByRole('dialog', { name: 'Image received' });
+  await expect(imagePopup.getByRole('img', { name: 'Image transfer preview' })).toBeVisible();
+  await dismissReceipt('Image received', '橋.png');
   const receipt = page.locator('.inbox article').first();
   await expect(receipt).toContainText('橋.png');
   await receipt.getByRole('button', { name: 'Preview image' }).click();
@@ -93,6 +112,7 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   await page.getByRole('button', { name: /Make 1/ }).click();
   await expect(page.getByText(/Within target of 1024/)).toBeVisible();
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Image received', 'large-thumb.jpg');
   await expect(receipt).toContainText('large-thumb.jpg', { timeout: 20000 });
   await receipt.getByRole('button', { name: 'Preview image' }).click();
   await expect.poll(() => receipt.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
@@ -101,6 +121,10 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const binary = Buffer.concat([Buffer.from('<script>throw Error("execution")</script>'), Buffer.from([0,255,128])]);
   await page.getByLabel('Select a small file').setInputFiles({ name: 'sample.html', mimeType: 'text/html', buffer: binary });
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  const filePopup = page.getByRole('dialog', { name: 'File received' });
+  await expect(filePopup).toContainText('sample.html');
+  await expect(filePopup.locator('img, iframe, script, object')).toHaveCount(0);
+  await dismissReceipt('File received', 'sample.html');
   await expect(receipt).toContainText('sample.html');
   await expect(receipt.locator('img, iframe, script, object')).toHaveCount(0);
   await expect(page.getByText(binary.length + ' / ' + binary.length + ' unique content bytes acknowledged')).toBeVisible();
@@ -111,9 +135,11 @@ test('production assets, worker/WASM/worklet and offline reload work with restri
   const message = page.getByLabel('What would you like to send?');
   await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: null }));
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Message received', 'rescue_incident');
   await expect(receipt).toContainText('STRUCTURED DATA');
   await message.fill(JSON.stringify({ messageType: 'rescue_incident', payload: { title: 'Unsigned incident' } }));
   await page.getByRole('button', { name: 'Run PCM simulation' }).click();
+  await dismissReceipt('Message received', 'Unsigned incident');
   await expect(receipt).toContainText('Unsigned incident');
   await expect(receipt).toContainText('Sender details from received text');
   expect(errors).toEqual([]); expect(badResponses).toEqual([]);

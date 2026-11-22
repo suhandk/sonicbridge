@@ -1,6 +1,7 @@
 import { useEffect, useState, type Ref } from 'react';
 import { Kind } from './protocol';
 import type { PacketEvent, TransportState } from './transport';
+import { TRANSFER_REFERENCE_RANGE } from './range-expander';
 import type { Policy } from './controller';
 
 export type Progress = { acked: number; total: number; at?: number; rate?: number };
@@ -36,6 +37,9 @@ export function SessionMonitor({ session, progress, events, simulated, estimate,
     <div aria-hidden="true" className={'final-track '+(phase === 'completed' ? simulated ? 'simulated' : 'confirmed' : '')}/>
     <p className="fine">{progress ? `${progress.acked} / ${progress.total} unique content bytes ${session?.receive ? 'reassembled' : 'acknowledged'}` : 'Unique payload bytes'}</p>
     <dl className="metrics"><div><dt>{simulated ? 'Simulated elapsed' : 'Elapsed'}</dt><dd>{session ? duration(elapsed) : '—'}</dd></div><div><dt>Estimated remaining</dt><dd>{etaLabel}</dd></div><div><dt>Local retries</dt><dd className={session?.retries ? "retry-count" : undefined} key={session?.retries}>{session ? session.retries : '—'}</dd></div><div><dt>{running ? 'Active profile' : 'Modem profile'}</dt><dd>{session ? profile+' · '+session.policy : '—'}</dd></div></dl>
+    {(phase === 'completed' || phase === 'received') && <p className="fine">
+      Reference range · {TRANSFER_REFERENCE_RANGE}
+    </p>}
     <details className="timeline"><summary>Packet timeline <span>{events.length} recent</span></summary>
     {events.length ? <p className="fine">Time from the first retained event. TX marks submission to the modem.</p> : null}
     {events.length ? <ol>{events.slice().reverse().map(e => <li key={[e.at,e.direction,e.kind,e.session,e.transfer,e.seq,e.attempt].join('-')}><time>{((e.at-events[0].at)/1000).toFixed(1)}s</time><b>{e.direction === 'submit' ? 'TX submit' : e.direction === 'decode' ? 'RX decode' : 'Timeout'}</b><span title={'Session '+e.session+', transfer '+e.transfer}>{(e.kind === Kind.HELLO || e.kind === Kind.CONTENT_HELLO) && e.direction === 'submit' && e.attempt === 1 ? 'Transmission started · ' : ''}{Kind[e.kind]} #{e.seq}{e.attempt ? ' · try '+e.attempt : ''}</span></li>)}</ol> : <p>Packets appear here as the link runs.</p>}</details>
