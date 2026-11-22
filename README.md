@@ -1,103 +1,80 @@
 # SONICBRIDGE
-> **Offline Communication. Verified Trust. Anywhere.**
 
-SW-41 acoustic multi-scenario communication and trust platform. Connects nearby devices to exchange digitally signed, tamper-evident digital information through speakers and microphones without internet, Wi-Fi, or Bluetooth pairing.
+Send a short message, thumbnail or small file between nearby devices using their speakers and microphones. Once the app is loaded, the payload and every reply travel through sound. Both devices need a working speaker and microphone because the receiver answers the sender.
 
-Built with React 19, TypeScript, Vite, Web Audio API, locally bundled ggwave WebAssembly modem, and standard W3C Web Crypto APIs (ECDSA P-256 & SHA-256).
+[Open SONICBRIDGE](https://sonicbridge-acoustic-link.vercel.app) · [Demo guide](DEMO.md) · [Benchmark results](BENCHMARKS.md)
 
----
+![SONICBRIDGE landing page with the orbital scene and Open the console button](docs/screenshots/landing.jpg)
 
-## 1. Quick Start
+## Send your first message between two devices
 
-```powershell
+| Step | Sender | Receiver |
+| --- | --- | --- |
+| 1. Prepare | Open the console, select **Acoustic Transceiver** and **Physical Audio**, then click **Start Audio**. | Do the same. Keep the page visible and allow microphone access when prompted. |
+| 2. Listen | Select **Send → Text** and type a short, recognizable message. | Select **Receive → Listen with microphone**. Leave the listener running. |
+| 3. Transmit | Click **Start transmission** and allow microphone access so the sender can hear replies. Follow acknowledged bytes and retries in **Transfer monitor**. | Keep the speaker audible so acknowledgements can reach the sender. |
+| 4. Confirm | Wait for the final acknowledgement before considering the transfer complete. | Read the **Message received** popup. Choose **View in Received** to return to the verified item. |
+
+For a first attempt, place the devices nearby in a quiet room and use their built-in speakers. If bytes stop advancing, check microphone permissions and speaker output on **both** devices. A working forward path can still have a weak return path.
+
+## Try the workflow on one laptop
+
+1. Click **Start Audio**, select **Simulation · local PCM**, and choose **Send → Text**.
+2. Type a message and click **Run PCM simulation**. The app runs the encoder, decoder and reply exchange locally.
+3. Compare the popup text with your draft and open **View in Received**. The result carries the simulation label. Physical testing requires a separate two-device run.
+
+| Compose the message | Check the received result |
+| --- | --- |
+| ![Text composer with the field note entered and the PCM simulation action](docs/screenshots/composer.jpg) | ![Message received dialog showing the same field note and the Simulation · local PCM label](docs/screenshots/received.jpg) |
+
+These two console screenshots come from the same local PCM transfer.
+
+## What happens during a transfer
+
+~~~mermaid
+sequenceDiagram
+    participant S as Sender
+    participant R as Receiver
+    S->>R: HELLO over sound
+    R-->>S: Capabilities
+    loop Each numbered chunk
+        S->>R: DATA
+        R-->>S: ACK for that chunk
+    end
+    S->>R: FIN
+    R->>R: Reassemble and verify content
+    R-->>S: FIN_ACK
+~~~
+
+React and TypeScript provide the console. Web Audio and an AudioWorklet capture microphone samples, and the locally bundled ggwave WASM modem converts bytes to tones and back. CRC32 checks each packet. The sender retries missing replies within a bounded budget, and the receiver counts duplicate chunks once. SHA-256 verifies reconstructed file contents. Sender completion requires the matching final reply. [Wire format and recovery](PROTOCOL.md)
+
+## Payloads and limits
+
+- **Text** supports UTF-8. For optional English dictation, start audio and choose **Speak to fill message**. Moonshine Tiny adds a transcript to the editable draft. Review it before sending.
+- **Images** can be resized locally. The thumbnail preset targets 1–3 KiB on a best-effort basis. Check the actual encoded size and estimated time before sending.
+- **Small files** travel as binary chunks. The transfer budget is 4,096 bytes including the manifest and filename, with up to 120 payload bytes per DATA packet.
+
+## Run locally and prepare for offline use
+
+Use Node.js 24 and npm. From the repository root, run:
+
+~~~sh
 npm ci
 npm run dev
-```
+~~~
 
-Open [http://localhost:5173](http://localhost:5173). Start Audio on both devices; listen with the receiver's microphone, then transmit from the sender's speaker.
+Open the localhost URL printed by Vite. On a second laptop or phone, open the hosted HTTPS app or use the [local HTTPS setup](HTTPS.md). An ordinary HTTP LAN address can prevent microphone access.
 
-In **Send → Text**, select **Speak to fill message** after starting audio. Speak in English for up to five seconds. Moonshine Tiny runs locally and appends the transcript to the editable draft. Review it, then use the existing send button. The recording stays in memory on the device. The first dictation in the production app downloads about 45 MiB of same-origin model and runtime assets after the app has installed. Use dictation once while online to cache these assets for offline use. Restore bundled model files with `npm run download:speech-model` if needed.
+For offline use, open the **production** app online on each device and allow its service worker to finish caching. Reload offline before the demo. Optional dictation needs an additional first-use download of about 45 MiB, so run it once online if you plan to use it offline.
 
-### Key Capabilities
-- **Real Acoustic Channel**: Sender Device Speaker ➔ Sound Waves ➔ Receiver Device Microphone ➔ Decoding ➔ Verified Application Message.
-- **Local PCM Simulation**: Switch to **Simulation · local PCM** to execute the complete protocol exchange through generated PCM without requiring physical audio hardware.
-- **Physical Transfer Boundaries**: Up to 4096 bytes per transfer; negotiated DATA payload of up to 120 bytes per acoustic packet with CRC32 packet integrity and FIN_ACK sender confirmation.
+## Verification and further reading
 
----
+| Command | What it exercises |
+| --- | --- |
+| `npm test` | Unit and integration tests |
+| `npm run build` | Type checking, production bundle and offline assets |
+| `npm run test:browser` | Chromium console and audio workflows |
+| `npm run test:pwa` | Offline production reload |
+| `npm run benchmark` | Repeatable transfers through simulated PCM channels |
 
-## 2. Three Operating Environments
-
-SonicBridge provides three dedicated application experiences powered by a shared acoustic engine, cryptographic identity service, offline persistence, and store-and-forward relay:
-
-### 🚨 Mode 1: SONICBRIDGE RESCUE — Emergency Field Communication
-*Tagline: "Communication when infrastructure fails."*
-- Structured incident reporting: Incident ID, category (Medical, Search & Rescue, Food/Water, Shelter, Hazard, Logistics), Priority (Critical, High, Medium, Low), location, GPS coordinates (when permitted), affected casualties count, resource requests with urgency.
-- Emergency Command Dashboard: Real-time incident counts, critical demands, priority sorting (Critical first).
-- Store-and-forward multi-hop relay: Field volunteer (Device A) ➔ Relief coordinator (Device B) ➔ Regional command (Device C).
-
-### 🔒 Mode 2: SONICBRIDGE AIR-GAP — Secure Industrial Data Exchange
-*Tagline: "Secure data exchange without network connectivity."*
-- Critical industrial asset registry: Machine ID, category (Turbines, PLCs, Generators, Pumps), firmware/config version, operator authorization.
-- Cryptographically signed configuration packages: Parameter payloads, SHA-256 content digests, ECDSA P-256 author signatures.
-- Quarantine & Approval Screen: Never executes unverified machine code; enforces operator inspection, side-by-side diffs, and cryptographic verification.
-- **Live Security Verification**: Built-in tamper test simulation flips bytes in payload or signature to demonstrate real cryptographic rejection (`DIGEST_MISMATCH` / `INVALID_SIGNATURE`).
-
-### 📦 Mode 3: SONICBRIDGE TRACE — Offline Supply Chain Verification
-*Tagline: "Every handover. Verified. Offline."*
-- Shipment registration: Package IDs, cold-chain temperature constraints, units, quantities, sender and destination organizations.
-- Custody Handovers: Cryptographic custody transfers between transit vehicles, depots, and field receiving points.
-- Cryptographic Chain of Custody: Append-only hash-linked chain of handovers with signed application-level acceptance receipts.
-- Duplicate and replay prevention: Rejects replayed nonces or duplicate handover IDs.
-
----
-
-## 3. Cryptography & Security Architecture
-
-1. **Web Crypto ECDSA P-256**: Every device generates a persistent ECDSA P-256 key pair in IndexedDB. Private keys never leave the device.
-2. **Deterministic Canonicalization**: Payload objects are sorted and canonicalized before SHA-256 hashing to guarantee identical signature verification across platforms.
-3. **Replay & Tamper Protection**: Every message carries a unique `messageId`, timestamp, expiration window, and cryptographic `nonce`. Replayed messages and expired packets are immediately rejected.
-4. **Local Trust Registry**: Peers can enroll public key fingerprints (`P-256` SHA-256 first 16 hex characters) via QR/text cards to distinguish verified contacts from unknown senders.
-5. **Cryptographic Hash-Linked Audit Ledger**: Append-only log where every action is linked to the previous entry via SHA-256 (`prevHash`). Built-in integrity verification detects any modification. Exportable as JSON and CSV.
-
----
-
-## 4. Live Audio Diagnostics & FFT Visualizer
-
-- **Real-Time FFT Spectrum & Waveform**: Integrated Web Audio `AnalyserNode` provides live frequency spectrum bars and time-domain oscilloscope directly from physical microphone input.
-- **Pre-Transfer Device Readiness Checklist**: Verifies AudioContext state, microphone permissions, active listening state, and modem graph sample rates.
-- **Clear Method Labeling**: Visually distinguishes `PHYSICAL AUDIO · LIVE MICROPHONE` from `SIMULATION · LOCAL PCM`.
-
----
-
-## 5. Multi-Scenario Guided Workflows
-
-Each operating environment features dedicated, focused interfaces:
-
-- **Rescue Mesh**: Broadcast critical emergency water/medical requests, triage casualty levels, and coordinate local relief points.
-- **Air-Gap Security**:
-  - Deploy verified turbine/SCADA calibration packages to air-gapped equipment.
-  - Verify cryptographic signatures and test simulated tamper rejection.
-- **Supply Chain Trace**: Custody handover tracking for temperature-controlled cold-chain medical shipments with verifiable receipts.
-
----
-
-## 6. Verification and Testing
-
-```powershell
-# 1. Unit & Integration Tests (94 tests across 13 test files)
-npm test
-
-# 2. Production Offline PWA Build
-npm run build
-
-# 3. Playwright End-to-End Browser Tests (10 tests in Chromium)
-npm run test:browser
-
-# 4. Production Service Worker Offline Test
-npm run test:pwa
-
-# 5. Paired PCM Acoustic Benchmarks
-npm run benchmark
-```
-
-All 105 automated tests pass without errors.
+The recorded 480-byte benchmark completed **12/12 quiet trials**, **0/12 noise-burst trials** and **0/12 weak-return trials**. These are simulated audio results. Physical range and device compatibility require separate measurements. [Benchmark conditions](BENCHMARKS.md) · [Device matrix](DEVICE_TEST_MATRIX.md) · [Physical test sheet](PHYSICAL_TEST_SHEET.md)
